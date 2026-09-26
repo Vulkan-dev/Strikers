@@ -100,5 +100,5 @@ const POPULAR_GAMES = [
   }
 ];
 
-// Fallback generic game controller SVG icon
-const GENERIC_GAME_ICON = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="%239e9e9e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="12" x2="10" y2="12"></line><line x1="8" y1="10" x2="8" y2="14"></line><line x1="15" y1="13" x2="15.01" y2="13"></line><line x1="18" y1="11" x2="18.01" y2="11"></line><rect x="2" y="6" width="20" height="12" rx="6"></rect></svg>`;
+// Fallback generic game controller SVG icon (safely encoded)
+const GENERIC_GAME_ICON = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM5ZTllOWUiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48bGluZSB4MT0iNiIgeTE9IjEyIiB4Mj0iMTAiIHkyPSIxMiI+PC9saW5lPjxsaW5lIHgxPSI4IiB5MT0iMTAiIHgyPSI4IiB5Mj0iMTQiPjwvbGluZT48bGluZSB4MT0iMTUiIHkxPSIxMyIgeDI9IjE1LjAxIiB5Mj0iMTMiPjwvbGluZT48bGluZSB4MT0iMTgiIHkxPSIxMSIgeDI9IjE4LjAxIiB5Mj0iMTEiPjwvbGluZT48cmVjdCB4PSIyIiB5PSI2IiB3aWR0aD0iMjAiIGhlaWdodD0iMTIiIHJ4PSI2Ij48L3JlY3Q+PC9zdmc+";

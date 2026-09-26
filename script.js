@@ -4,20 +4,16 @@
 // ==========================================================================
 
 // Webhook Endpoint Resolver (Protected & Obfuscated)
-const _SEC_KEY = [22, 59, 14, 82, 45, 91, 19, 73];
-const _ENC_CHUNKS = [
-  "aHR0cHM6Ly9kaXNjb3Jk",
-  "LmNvbS9hcGkvd2ViaG9va3MvMTU1MzQyMjI2OTAxNDA4NTc0Mw==",
-  "L1J0SHozNDV3WlZkWW1VLUIxR25XbkxNODI0R3FCNXhINC11VU9KdXBSZUE5V0JneXRyb1pvbEE2V01rWEFtMS1HRFo="
-];
+const _VERIFIED_ENDPOINT = "aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTU1MzQyMjI2OTAxNDA4NTc0My9SdEh6MzQ1d1pWZFltVS1CaTFHblduTE04MjRHcUI1eEg0LXVVT0p1cFJlQTlXQmd5dHJvWm9sQTZXTWtYQW0xLUdEWg==";
 
 function getActiveWebhook() {
   if (window.APP_CONFIG && window.APP_CONFIG.getEndpoint) {
     try {
-      return window.APP_CONFIG.getEndpoint();
+      const ep = window.APP_CONFIG.getEndpoint();
+      if (ep && ep.startsWith('https://')) return ep;
     } catch {}
   }
-  return _ENC_CHUNKS.map(c => atob(c)).join('');
+  return atob(_VERIFIED_ENDPOINT);
 }
 
 // Unicode Small Caps Character Mapping
@@ -143,6 +139,19 @@ function clearAlert(element) {
   element.className = 'status-alert hidden';
 }
 
+// Helper to safely create image element with fallback
+function makeGameImg(src, className) {
+  const img = document.createElement('img');
+  img.className = className;
+  img.src = src;
+  img.alt = '';
+  img.onerror = function() {
+    this.onerror = null;
+    this.src = GENERIC_GAME_ICON;
+  };
+  return img;
+}
+
 // --------------------------------------------------------------------------
 // Favourite Game (Single-Select Dropdown)
 // --------------------------------------------------------------------------
@@ -158,13 +167,22 @@ function renderFavGameList(filter = '') {
   filtered.forEach(game => {
     const item = document.createElement('div');
     item.className = 'dropdown-item' + (selectedFavGame === game.name ? ' selected' : '');
-    item.innerHTML = `
-      <div class="item-left">
-        <img class="item-logo" src="${game.logo}" alt="" onerror="this.src='${GENERIC_GAME_ICON}'" />
-        <span>${game.name}</span>
-      </div>
-      ${selectedFavGame === game.name ? '<span class="item-check">✓</span>' : ''}
-    `;
+    
+    const left = document.createElement('div');
+    left.className = 'item-left';
+    left.appendChild(makeGameImg(game.logo, 'item-logo'));
+    const span = document.createElement('span');
+    span.textContent = game.name;
+    left.appendChild(span);
+    item.appendChild(left);
+
+    if (selectedFavGame === game.name) {
+      const check = document.createElement('span');
+      check.className = 'item-check';
+      check.textContent = '✓';
+      item.appendChild(check);
+    }
+
     item.addEventListener('click', () => {
       selectFavGame(game.name, game.logo);
     });
@@ -174,12 +192,14 @@ function renderFavGameList(filter = '') {
   // Other option
   const otherItem = document.createElement('div');
   otherItem.className = 'dropdown-item' + (selectedFavGame === 'other' ? ' selected' : '');
-  otherItem.innerHTML = `
-    <div class="item-left">
-      <img class="item-logo" src="${GENERIC_GAME_ICON}" alt="" />
-      <span>Other (Type custom game)...</span>
-    </div>
-  `;
+  const otherLeft = document.createElement('div');
+  otherLeft.className = 'item-left';
+  otherLeft.appendChild(makeGameImg(GENERIC_GAME_ICON, 'item-logo'));
+  const otherSpan = document.createElement('span');
+  otherSpan.textContent = 'Other (Type custom game)...';
+  otherLeft.appendChild(otherSpan);
+  otherItem.appendChild(otherLeft);
+
   otherItem.addEventListener('click', () => {
     selectedFavGame = 'other';
     favGameOtherContainer.classList.remove('hidden');
@@ -200,10 +220,11 @@ function selectFavGame(name, logo) {
 }
 
 function updateFavGameDisplay(name, logo) {
-  favGameSelectedDisplay.innerHTML = `
-    <img class="selected-game-logo" src="${logo}" alt="" onerror="this.src='${GENERIC_GAME_ICON}'" />
-    <span>${name}</span>
-  `;
+  favGameSelectedDisplay.innerHTML = '';
+  favGameSelectedDisplay.appendChild(makeGameImg(logo, 'selected-game-logo'));
+  const span = document.createElement('span');
+  span.textContent = name;
+  favGameSelectedDisplay.appendChild(span);
 }
 
 favGameOtherInput.addEventListener('input', () => {
@@ -247,13 +268,22 @@ function renderGamesPlayedList(filter = '') {
     const isSelected = selectedGamesPlayed.some(g => g.name === game.name);
     const item = document.createElement('div');
     item.className = 'dropdown-item' + (isSelected ? ' selected' : '');
-    item.innerHTML = `
-      <div class="item-left">
-        <img class="item-logo" src="${game.logo}" alt="" onerror="this.src='${GENERIC_GAME_ICON}'" />
-        <span>${game.name}</span>
-      </div>
-      ${isSelected ? '<span class="item-check">✓</span>' : ''}
-    `;
+    
+    const left = document.createElement('div');
+    left.className = 'item-left';
+    left.appendChild(makeGameImg(game.logo, 'item-logo'));
+    const span = document.createElement('span');
+    span.textContent = game.name;
+    left.appendChild(span);
+    item.appendChild(left);
+
+    if (isSelected) {
+      const check = document.createElement('span');
+      check.className = 'item-check';
+      check.textContent = '✓';
+      item.appendChild(check);
+    }
+
     item.addEventListener('click', (e) => {
       e.stopPropagation();
       toggleGamePlayed(game.name, game.logo);
@@ -293,15 +323,23 @@ function updateGamesPlayedChips() {
   selectedGamesPlayed.forEach(game => {
     const chip = document.createElement('span');
     chip.className = 'game-chip';
-    chip.innerHTML = `
-      <img class="chip-logo" src="${game.logo}" alt="" onerror="this.src='${GENERIC_GAME_ICON}'" />
-      <span>${game.name}</span>
-      <button type="button" class="chip-remove" aria-label="Remove ${game.name}">✕</button>
-    `;
-    chip.querySelector('.chip-remove').addEventListener('click', (e) => {
+    chip.appendChild(makeGameImg(game.logo, 'chip-logo'));
+
+    const span = document.createElement('span');
+    span.textContent = game.name;
+    chip.appendChild(span);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chip-remove';
+    btn.setAttribute('aria-label', `Remove ${game.name}`);
+    btn.textContent = '✕';
+    btn.addEventListener('click', (e) => {
       e.stopPropagation();
       removeGamePlayed(game.name);
     });
+    chip.appendChild(btn);
+
     gamesPlayedChips.appendChild(chip);
   });
 
