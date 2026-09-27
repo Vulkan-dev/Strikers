@@ -87,14 +87,45 @@ function toCleanBold(str) {
 }
 
 /**
+ * Converts text into Script Fancy typography:
+ * e.g. "strikers" -> "𝓢 𝓽 𝓻 𝓲 𝓴 𝓮 𝓻 𝓼"
+ */
+function toScript(str) {
+  if (!str) return '';
+  return [...str].map(ch => {
+    const code = ch.charCodeAt(0);
+    if (code >= 65 && code <= 90) return String.fromCodePoint(0x1D4D0 + (code - 65));
+    if (code >= 97 && code <= 122) return String.fromCodePoint(0x1D4EA + (code - 97));
+    return ch;
+  }).join(' ');
+}
+
+/**
+ * Converts text into Gothic / Blackletter typography:
+ * e.g. "strikers" -> "𝔖 𝔱 𝔯 𝔦 𝔨 𝔢 𝔯 𝔰"
+ */
+function toGothic(str) {
+  if (!str) return '';
+  return [...str].map(ch => {
+    const code = ch.charCodeAt(0);
+    if (code >= 65 && code <= 90) return String.fromCodePoint(0x1D504 + (code - 65));
+    if (code >= 97 && code <= 122) return String.fromCodePoint(0x1D51E + (code - 97));
+    return ch;
+  }).join(' ');
+}
+
+/**
  * Constructs the formatted moniker with clan prefix and brackets:
- * e.g. "-͟͟͞ 𝐒𝐓𝐑 乂【sᴛʀɪᴋᴇʀs】" or "-͟͟͞ 𝐒𝐓𝐑 乂【𝗔 𝗥 𝗧 𝗛 𝗨 𝗥】"
+ * e.g. "-͟͟͞ 𝐒𝐓𝐑 乂【sᴛʀɪᴋᴇʀs】"
  */
 function formatClanMoniker(rawName, style = currentStyle) {
   const prefix = (window.APP_CONFIG && window.APP_CONFIG.clanPrefix) || "-͟͟͞ 𝐒𝐓𝐑 乂【";
   const suffix = (window.APP_CONFIG && window.APP_CONFIG.clanSuffix) || "】";
   const trimmed = (rawName || '').trim();
-  const styled = (style === 'clean_bold') ? toCleanBold(trimmed) : toSmallCaps(trimmed);
+  let styled = toSmallCaps(trimmed);
+  if (style === 'clean_bold') styled = toCleanBold(trimmed);
+  else if (style === 'script') styled = toScript(trimmed);
+  else if (style === 'gothic') styled = toGothic(trimmed);
   return `${prefix}${styled}${suffix}`;
 }
 
@@ -163,8 +194,12 @@ const lockoutNotice = document.getElementById('lockoutNotice');
 // Typography Style Picker Elements
 const styleOptSmall = document.getElementById('styleOptSmall');
 const styleOptClean = document.getElementById('styleOptClean');
+const styleOptScript = document.getElementById('styleOptScript');
+const styleOptGothic = document.getElementById('styleOptGothic');
 const previewSmallCaps = document.getElementById('previewSmallCaps');
 const previewCleanBold = document.getElementById('previewCleanBold');
+const previewScript = document.getElementById('previewScript');
+const previewGothic = document.getElementById('previewGothic');
 
 // Modal Elements
 const confirmModal = document.getElementById('confirmModal');
@@ -1069,13 +1104,15 @@ function setMonikerStyle(style) {
   currentStyle = style;
   localStorage.setItem(STYLE_STORAGE_KEY, style);
 
-  if (style === 'clean_bold') {
-    if (styleOptClean) styleOptClean.classList.add('active');
-    if (styleOptSmall) styleOptSmall.classList.remove('active');
-  } else {
-    if (styleOptSmall) styleOptSmall.classList.add('active');
-    if (styleOptClean) styleOptClean.classList.remove('active');
-  }
+  [styleOptSmall, styleOptClean, styleOptScript, styleOptGothic].forEach(opt => {
+    if (opt) opt.classList.remove('active');
+  });
+
+  if (style === 'clean_bold' && styleOptClean) styleOptClean.classList.add('active');
+  else if (style === 'script' && styleOptScript) styleOptScript.classList.add('active');
+  else if (style === 'gothic' && styleOptGothic) styleOptGothic.classList.add('active');
+  else if (styleOptSmall) styleOptSmall.classList.add('active');
+
   updateStylePreviews();
 }
 
@@ -1083,27 +1120,37 @@ function updateStylePreviews() {
   const raw = (clanNameInput && clanNameInput.value.trim()) || 'strikers';
   if (previewSmallCaps) previewSmallCaps.textContent = formatClanMoniker(raw, 'small_caps');
   if (previewCleanBold) previewCleanBold.textContent = formatClanMoniker(raw, 'clean_bold');
+  if (previewScript) previewScript.textContent = formatClanMoniker(raw, 'script');
+  if (previewGothic) previewGothic.textContent = formatClanMoniker(raw, 'gothic');
+
+  // Live update Moniker output display
+  const currentVal = (clanNameInput && clanNameInput.value.trim()) || '';
+  if (currentVal) {
+    currentFormattedName = formatClanMoniker(currentVal, currentStyle);
+    formattedOutput.textContent = currentFormattedName;
+    copyBtn.disabled = false;
+  } else {
+    formattedOutput.innerHTML = '<span class="placeholder-text">Type your name above to see live preview</span>';
+    copyBtn.disabled = true;
+  }
 }
 
-if (styleOptSmall) {
-  styleOptSmall.addEventListener('click', () => setMonikerStyle('small_caps'));
-  styleOptSmall.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      setMonikerStyle('small_caps');
-    }
-  });
-}
-
-if (styleOptClean) {
-  styleOptClean.addEventListener('click', () => setMonikerStyle('clean_bold'));
-  styleOptClean.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      setMonikerStyle('clean_bold');
-    }
-  });
-}
+[
+  { el: styleOptSmall, style: 'small_caps' },
+  { el: styleOptClean, style: 'clean_bold' },
+  { el: styleOptScript, style: 'script' },
+  { el: styleOptGothic, style: 'gothic' }
+].forEach(({ el, style }) => {
+  if (el) {
+    el.addEventListener('click', () => setMonikerStyle(style));
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        setMonikerStyle(style);
+      }
+    });
+  }
+});
 
 if (clanNameInput) {
   clanNameInput.addEventListener('input', () => {

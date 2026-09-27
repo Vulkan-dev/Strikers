@@ -102,16 +102,16 @@ export default async function handler(req, res) {
 
           if (user.avatar) {
             const ext = user.avatar.startsWith('a_') ? 'gif' : 'png';
-            profile.avatar_url = `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.${ext}?size=256`;
+            profile.avatar_url = `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.${ext}?size=512`;
           }
 
           if (user.avatar_decoration_data && user.avatar_decoration_data.asset) {
-            profile.avatar_decoration_url = `https://cdn.discordapp.com/avatar-decoration-presets/${user.avatar_decoration_data.asset}.png?size=256&passthrough=true`;
+            profile.avatar_decoration_url = `https://cdn.discordapp.com/avatar-decoration-presets/${user.avatar_decoration_data.asset}.png`;
           }
 
           if (user.banner) {
             const ext = user.banner.startsWith('a_') ? 'gif' : 'png';
-            profile.banner_url = `https://cdn.discordapp.com/banners/${user.id}/${user.banner}.${ext}?size=600`;
+            profile.banner_url = `https://cdn.discordapp.com/banners/${user.id}/${user.banner}.${ext}?size=1024`;
           }
 
           if (user.accent_color) {
@@ -128,6 +128,15 @@ export default async function handler(req, res) {
         console.warn('Bot API lookup failed, using snowflake metadata:', apiErr.message);
       }
     }
+
+    // Attach camelCase aliases for complete frontend compatibility
+    profile.avatarUrl = profile.avatar_url;
+    profile.bannerUrl = profile.banner_url;
+    profile.decorationUrl = profile.avatar_decoration_url;
+    profile.globalName = profile.global_name;
+    profile.accountAgeDays = profile.age_days;
+    profile.accountAgeMonths = profile.age_months;
+    profile.isEligible = profile.is_eligible;
 
     return res.status(200).json(profile);
   } catch (err) {

@@ -241,20 +241,53 @@
         </div>
 
         <div class="section-block">
+          <div class="generator-grid">
+            <div class="form-group">
+              <label for="clanNameInput">
+                1. Type Desired Clan Name <span class="req">*</span>
+                <span class="label-hint">e.g. "strikers" or "dark wave"</span>
+              </label>
+              <input 
+                type="text" 
+                id="clanNameInput" 
+                name="clanNameInput" 
+                placeholder="Type your clan name here..." 
+                autocomplete="off"
+                maxlength="24"
+              />
+            </div>
+
+            <div class="form-group output-group">
+              <label>Generated Clan Moniker Preview</label>
+              <div class="output-container">
+                <div class="formatted-output" id="formattedOutput" aria-live="polite">
+                  <span class="placeholder-text">Type your name above to see live preview</span>
+                </div>
+                <button type="button" id="copyBtn" class="btn-copy" title="Copy to clipboard" disabled>
+                  <svg id="copyIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  <span id="copyBtnText">Copy</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- Moniker Typography Variant Selection -->
-          <div class="form-group style-picker-group">
+          <div class="form-group style-picker-group" style="margin-top: 1.5rem;">
             <label>
-              <span class="label-text">Typography Style <span class="req">*</span></span>
-              <span class="label-hint">Choose your preferred font variant</span>
+              <span class="label-text">2. Choose Typography Variant <span class="req">*</span></span>
+              <span class="label-hint">Select a font variant below to change style live</span>
             </label>
-            <div class="style-cards-grid">
+            <div class="style-cards-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
               <div class="style-option active" data-style="small_caps" id="styleOptSmall" role="button" tabindex="0" aria-label="Variant 1: Small Caps">
                 <div class="style-option-radio">
                   <span class="radio-dot"></span>
                 </div>
                 <div class="style-option-content">
                   <div class="style-option-header">
-                    <span class="style-title">Variant 1 (Small)</span>
+                    <span class="style-title">Variant 1</span>
                     <span class="style-badge">Small Caps</span>
                   </div>
                   <div class="style-preview-text" id="previewSmallCaps">-͟͟͞ 𝐒𝐓𝐑 乂【sᴛʀɪᴋᴇʀs】</div>
@@ -267,47 +300,46 @@
                 </div>
                 <div class="style-option-content">
                   <div class="style-option-header">
-                    <span class="style-title">Variant 2 (Clean)</span>
+                    <span class="style-title">Variant 2</span>
                     <span class="style-badge">Clean Spaced</span>
                   </div>
                   <div class="style-preview-text" id="previewCleanBold">-͟͟͞ 𝐒𝐓𝐑 乂【𝗦 𝗧 𝗥 𝗜 𝗞 𝗘 𝗥 𝗦】</div>
                 </div>
               </div>
+
+              <div class="style-option" data-style="script" id="styleOptScript" role="button" tabindex="0" aria-label="Variant 3: Script Fancy">
+                <div class="style-option-radio">
+                  <span class="radio-dot"></span>
+                </div>
+                <div class="style-option-content">
+                  <div class="style-option-header">
+                    <span class="style-title">Variant 3</span>
+                    <span class="style-badge">Script Fancy</span>
+                  </div>
+                  <div class="style-preview-text" id="previewScript">-͟͟͞ 𝐒𝐓𝐑 乂【𝓢 𝓽 𝓻 𝓲 𝓴 𝓮 𝓻 𝓼】</div>
+                </div>
+              </div>
+
+              <div class="style-option" data-style="gothic" id="styleOptGothic" role="button" tabindex="0" aria-label="Variant 4: Gothic">
+                <div class="style-option-radio">
+                  <span class="radio-dot"></span>
+                </div>
+                <div class="style-option-content">
+                  <div class="style-option-header">
+                    <span class="style-title">Variant 4</span>
+                    <span class="style-badge">Gothic</span>
+                  </div>
+                  <div class="style-preview-text" id="previewGothic">-͟͟͞ 𝐒𝐓𝐑 乂【𝔖 𝔱 𝔯 𝔦 𝔨 𝔢 𝔯 𝔰】</div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="generator-grid">
-            <div class="form-group">
-              <label for="clanNameInput">
-                Desired Clan Name
-                <span class="label-hint">e.g. "strikers" or "dark wave"</span>
-              </label>
-              <input 
-                type="text" 
-                id="clanNameInput" 
-                name="clanNameInput" 
-                placeholder="Type your clan name here..." 
-                autocomplete="off"
-                maxlength="24"
-              />
-              <button type="button" id="generateNameBtn" class="btn-primary-sm" style="margin-top: 0.6rem;">
-                Confirm & Generate Moniker
-              </button>
-            </div>
-
-            <div class="form-group output-group">
-              <label>Official Clan Moniker</label>
-              <div class="output-container">
-                <div class="formatted-output" id="formattedOutput" aria-live="polite">
-                  <span class="placeholder-text">Click "Confirm & Generate" to create</span>
-                </div>
-                <button type="button" id="copyBtn" class="btn-copy" title="Copy to clipboard" disabled>
-                  <svg id="copyIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                  </svg>
-                  <span id="copyBtnText">Copy</span>
-                </button>
+          <div style="margin-top: 1.5rem; text-align: center;">
+            <button type="button" id="generateNameBtn" class="btn-primary" style="padding: 0.8rem 2rem; font-size: 1rem;">
+              Confirm & Lock Moniker
+            </button>
+          </div>
               </div>
             </div>
           </div>
