@@ -1309,10 +1309,11 @@ input::placeholder {
 }
 
 .dcard-banner {
-  height: 64px;
+  height: 125px;
   background: linear-gradient(135deg, #1e1f22 0%, #2b2d31 100%);
   background-size: cover;
-  background-position: center;
+  background-position: center center;
+  background-repeat: no-repeat;
 }
 
 .dcard-body {
@@ -1325,9 +1326,9 @@ input::placeholder {
 
 .dcard-avatar-wrapper {
   position: relative;
-  margin-top: -32px;
-  width: 68px;
-  height: 68px;
+  margin-top: -38px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
   background-color: #111214;
   padding: 3px;
