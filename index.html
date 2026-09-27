@@ -211,47 +211,48 @@
           <p>Your official moniker has been recorded with clan leadership. Under STR rules, names are locked to prevent duplicates. You can change it again in 30 days.</p>
         </div>
 
-        <!-- Double Check Confirmation Modal -->
-        <div id="confirmModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
-          <div class="modal-card">
-            <div class="modal-badge">SECURITY NOTICE</div>
-            <h3 class="modal-title">Double Check Your Username</h3>
-            <p class="modal-desc">
-              Double check your <strong>Username</strong> and <strong>Display Name</strong>. You can only change it in 30 days.
-            </p>
-            <div class="modal-info-box">
-              <div class="modal-info-row">
-                <span class="info-label">Discord Username:</span>
-                <span class="info-val" id="modalConfirmUsername">@username</span>
-              </div>
-              <div class="modal-info-row">
-                <span class="info-label">Chosen Moniker:</span>
-                <span class="info-val mono" id="modalConfirmMoniker">-͟͟͞ 𝐒𝐓𝐑 乂【...】</span>
-              </div>
-            </div>
-            <div class="modal-warning">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-              </svg>
-              <span>Double check your username and display name. You can change it in 30 days.</span>
-            </div>
-            <div class="modal-actions">
-              <button type="button" id="cancelConfirmBtn" class="btn-ghost-sm">Go Back</button>
-              <button type="button" id="proceedConfirmBtn" class="btn-primary-sm">
-                <span>Confirm & Lock In</span>
-                <span class="btn-loader-sec hidden"></span>
-              </button>
-            </div>
-          </div>
-        </div>
       </section>
     </main>
 
     <footer class="portal-footer">
       <span>STR Management System &bull; Minimalist Identity Engine</span>
     </footer>
+  </div>
+
+  <!-- Double Check Confirmation Modal (Root body child for proper viewport centering) -->
+  <div id="confirmModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-badge">SECURITY NOTICE</div>
+      <h3 class="modal-title">Double Check Your Username</h3>
+      <p class="modal-desc">
+        Double check your <strong>Username</strong> and <strong>Display Name</strong>. You can only change it in 30 days.
+      </p>
+      <div class="modal-info-box">
+        <div class="modal-info-row">
+          <span class="info-label">Discord Username:</span>
+          <span class="info-val" id="modalConfirmUsername">@username</span>
+        </div>
+        <div class="modal-info-row">
+          <span class="info-label">Chosen Moniker:</span>
+          <span class="info-val mono" id="modalConfirmMoniker">-͟͟͞ 𝐒𝐓𝐑 乂【...】</span>
+        </div>
+      </div>
+      <div class="modal-warning">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span>Double check your username and display name. You can change it in 30 days.</span>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="cancelConfirmBtn" class="btn-ghost-sm">Go Back</button>
+        <button type="button" id="proceedConfirmBtn" class="btn-primary-sm">
+          <span>Confirm & Lock In</span>
+          <span class="btn-loader-sec hidden"></span>
+        </button>
+      </div>
+    </div>
   </div>
 
   <script src="config.js"></script>

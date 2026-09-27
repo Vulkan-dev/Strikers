@@ -1,5 +1,5 @@
 // ==========================================================================
-// Popular Games Directory with Vector / CDN Logos
+// Popular Games Directory with Authentic Game Logos
 // ==========================================================================
 
 const POPULAR_GAMES = [
@@ -21,32 +21,32 @@ const POPULAR_GAMES = [
   {
     id: "minecraft",
     name: "Minecraft",
-    logo: "https://cdn.simpleicons.org/minecraft/529b38"
+    logo: "icons/minecraft.png"
   },
   {
     id: "apex-legends",
     name: "Apex Legends",
-    logo: "https://cdn.simpleicons.org/ea/da292a"
+    logo: "icons/apex.svg"
   },
   {
     id: "call-of-duty",
     name: "Call of Duty: Warzone",
-    logo: "https://cdn.simpleicons.org/activision/ffffff"
+    logo: "icons/cod.svg"
   },
   {
     id: "rainbow-six",
     name: "Tom Clancy's Rainbow Six Siege",
-    logo: "https://cdn.simpleicons.org/ubisoft/0066ff"
+    logo: "icons/r6.svg"
   },
   {
     id: "rust",
     name: "Rust",
-    logo: "https://cdn.simpleicons.org/rust/ce422b"
+    logo: "icons/rust.png"
   },
   {
     id: "gta-v",
     name: "Grand Theft Auto V / RP",
-    logo: "https://cdn.simpleicons.org/rockstargames/f99f1b"
+    logo: "icons/gtav.svg"
   },
   {
     id: "league-of-legends",
@@ -81,22 +81,22 @@ const POPULAR_GAMES = [
   {
     id: "tarkov",
     name: "Escape from Tarkov",
-    logo: "https://cdn.simpleicons.org/battlenet/00aeff"
+    logo: "icons/tarkov.svg"
   },
   {
     id: "dead-by-daylight",
     name: "Dead by Daylight",
-    logo: "https://cdn.simpleicons.org/steam/ffffff"
+    logo: "icons/dbd.svg"
   },
   {
     id: "brawlhalla",
     name: "Brawlhalla",
-    logo: "https://cdn.simpleicons.org/ubisoft/0066ff"
+    logo: "icons/brawlhalla.svg"
   },
   {
     id: "free-fire",
     name: "Garena Free Fire",
-    logo: "https://cdn.simpleicons.org/epicgames/ffffff"
+    logo: "icons/freefire.svg"
   }
 ];
 
