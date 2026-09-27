@@ -194,12 +194,8 @@ const lockoutNotice = document.getElementById('lockoutNotice');
 // Typography Style Picker Elements
 const styleOptSmall = document.getElementById('styleOptSmall');
 const styleOptClean = document.getElementById('styleOptClean');
-const styleOptScript = document.getElementById('styleOptScript');
-const styleOptGothic = document.getElementById('styleOptGothic');
 const previewSmallCaps = document.getElementById('previewSmallCaps');
 const previewCleanBold = document.getElementById('previewCleanBold');
-const previewScript = document.getElementById('previewScript');
-const previewGothic = document.getElementById('previewGothic');
 
 // Modal Elements
 const confirmModal = document.getElementById('confirmModal');
@@ -1104,14 +1100,13 @@ function setMonikerStyle(style) {
   currentStyle = style;
   localStorage.setItem(STYLE_STORAGE_KEY, style);
 
-  [styleOptSmall, styleOptClean, styleOptScript, styleOptGothic].forEach(opt => {
-    if (opt) opt.classList.remove('active');
-  });
-
-  if (style === 'clean_bold' && styleOptClean) styleOptClean.classList.add('active');
-  else if (style === 'script' && styleOptScript) styleOptScript.classList.add('active');
-  else if (style === 'gothic' && styleOptGothic) styleOptGothic.classList.add('active');
-  else if (styleOptSmall) styleOptSmall.classList.add('active');
+  if (style === 'clean_bold') {
+    if (styleOptClean) styleOptClean.classList.add('active');
+    if (styleOptSmall) styleOptSmall.classList.remove('active');
+  } else {
+    if (styleOptSmall) styleOptSmall.classList.add('active');
+    if (styleOptClean) styleOptClean.classList.remove('active');
+  }
 
   updateStylePreviews();
 }
@@ -1120,8 +1115,6 @@ function updateStylePreviews() {
   const raw = (clanNameInput && clanNameInput.value.trim()) || 'strikers';
   if (previewSmallCaps) previewSmallCaps.textContent = formatClanMoniker(raw, 'small_caps');
   if (previewCleanBold) previewCleanBold.textContent = formatClanMoniker(raw, 'clean_bold');
-  if (previewScript) previewScript.textContent = formatClanMoniker(raw, 'script');
-  if (previewGothic) previewGothic.textContent = formatClanMoniker(raw, 'gothic');
 
   // Live update Moniker output display
   const currentVal = (clanNameInput && clanNameInput.value.trim()) || '';
@@ -1137,9 +1130,7 @@ function updateStylePreviews() {
 
 [
   { el: styleOptSmall, style: 'small_caps' },
-  { el: styleOptClean, style: 'clean_bold' },
-  { el: styleOptScript, style: 'script' },
-  { el: styleOptGothic, style: 'gothic' }
+  { el: styleOptClean, style: 'clean_bold' }
 ].forEach(({ el, style }) => {
   if (el) {
     el.addEventListener('click', () => setMonikerStyle(style));
