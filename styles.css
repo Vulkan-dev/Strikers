@@ -1317,22 +1317,23 @@ input::placeholder {
 }
 
 .dcard-body {
-  padding: 0 1rem 0.85rem;
+  padding: 0 1.15rem 0.85rem;
   position: relative;
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 1rem;
 }
 
 .dcard-avatar-wrapper {
   position: relative;
-  margin-top: -38px;
-  width: 72px;
-  height: 72px;
+  margin-top: -52px;
+  width: 82px;
+  height: 82px;
   border-radius: 50%;
   background-color: #111214;
-  padding: 3px;
+  padding: 4px;
   flex-shrink: 0;
+  z-index: 5;
 }
 
 .dcard-avatar {
@@ -1345,24 +1346,24 @@ input::placeholder {
 
 .dcard-decoration {
   position: absolute;
-  top: -6px;
-  left: -6px;
-  width: 80px;
-  height: 80px;
+  top: -8px;
+  left: -8px;
+  width: 98px;
+  height: 98px;
   pointer-events: none;
-  z-index: 2;
+  z-index: 6;
 }
 
 .dcard-status-dot {
   position: absolute;
   bottom: 2px;
   right: 2px;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background-color: #23a55a;
   border: 3px solid #111214;
-  z-index: 3;
+  z-index: 7;
 }
 
 .dcard-info {
@@ -1370,7 +1371,8 @@ input::placeholder {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  padding-bottom: 0.2rem;
+  padding-top: 0.4rem;
+  margin-top: -12px;
 }
 
 .id-helper-box {
