@@ -1,0 +1,11 @@
+# Environment variable files (contains private secrets)
+.env
+.env.local
+.env.production
+*.env
+
+# Dependency & build directories
+node_modules/
+.vercel
+dist/
+.DS_Store
