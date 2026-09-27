@@ -61,24 +61,53 @@ function toSmallCaps(str) {
 }
 
 /**
- * Constructs the formatted moniker with clan prefix and brackets:
- * e.g. "-͟͟͞ 𝐒𝐓𝐑 乂【sᴛʀɪᴋᴇʀs】"
+ * Converts text into Clean Mathematical Sans-Serif Bold spaced typography:
+ * e.g. "arthur" -> "𝗔 𝗥 𝗧 𝗛 𝗨 𝗥"
+ * e.g. "RISING" -> "𝗥 𝗜 𝗦 𝗜 𝗡 𝗚"
+ * e.g. "dark wave" -> "𝗗 𝗔 𝗥 𝗞   𝗪 𝗔 𝗩 𝗘"
  */
-function formatClanMoniker(rawName) {
+function toCleanBold(str) {
+  if (!str) return '';
+  return str
+    .trim()
+    .split(/\s+/)
+    .map(word => {
+      return [...word].map(ch => {
+        const code = ch.toUpperCase().charCodeAt(0);
+        if (code >= 65 && code <= 90) {
+          return String.fromCodePoint(0x1D5D4 + (code - 65));
+        }
+        if (code >= 48 && code <= 57) {
+          return String.fromCodePoint(0x1D7EC + (code - 48));
+        }
+        return ch;
+      }).join(' ');
+    })
+    .join('   ');
+}
+
+/**
+ * Constructs the formatted moniker with clan prefix and brackets:
+ * e.g. "-͟͟͞ 𝐒𝐓𝐑 乂【sᴛʀɪᴋᴇʀs】" or "-͟͟͞ 𝐒𝐓𝐑 乂【𝗔 𝗥 𝗧 𝗛 𝗨 𝗥】"
+ */
+function formatClanMoniker(rawName, style = currentStyle) {
   const prefix = (window.APP_CONFIG && window.APP_CONFIG.clanPrefix) || "-͟͟͞ 𝐒𝐓𝐑 乂【";
   const suffix = (window.APP_CONFIG && window.APP_CONFIG.clanSuffix) || "】";
-  const smallCaps = toSmallCaps(rawName.trim());
-  return `${prefix}${smallCaps}${suffix}`;
+  const trimmed = (rawName || '').trim();
+  const styled = (style === 'clean_bold') ? toCleanBold(trimmed) : toSmallCaps(trimmed);
+  return `${prefix}${styled}${suffix}`;
 }
 
 // Storage Keys for persistent localStorage
 const APPLICANT_STORAGE_KEY = 'str_verified_applicant_data';
 const DRAFT_FORM_STORAGE_KEY = 'str_applicant_draft_form';
 const LOCK_STORAGE_KEY = 'str_moniker_lock_data';
+const STYLE_STORAGE_KEY = 'str_selected_style';
 
-// Cached applicant state
+// Cached applicant state & typography style
 let verifiedApplicant = null;
 let currentFormattedName = '';
+let currentStyle = localStorage.getItem(STYLE_STORAGE_KEY) || 'small_caps';
 
 // DOM Elements - Navigation & Headers
 const pageTitle = document.getElementById('pageTitle');
@@ -104,6 +133,12 @@ const copyBtn = document.getElementById('copyBtn');
 const copyBtnText = document.getElementById('copyBtnText');
 const monikerAlert = document.getElementById('monikerAlert');
 const lockoutNotice = document.getElementById('lockoutNotice');
+
+// Typography Style Picker Elements
+const styleOptSmall = document.getElementById('styleOptSmall');
+const styleOptClean = document.getElementById('styleOptClean');
+const previewSmallCaps = document.getElementById('previewSmallCaps');
+const previewCleanBold = document.getElementById('previewCleanBold');
 
 // Modal Elements
 const confirmModal = document.getElementById('confirmModal');
@@ -610,6 +645,53 @@ function restoreDraftForm() {
   } catch {}
 }
 
+function setMonikerStyle(style) {
+  if (isMonikerLocked) return;
+  currentStyle = style;
+  localStorage.setItem(STYLE_STORAGE_KEY, style);
+
+  if (style === 'clean_bold') {
+    if (styleOptClean) styleOptClean.classList.add('active');
+    if (styleOptSmall) styleOptSmall.classList.remove('active');
+  } else {
+    if (styleOptSmall) styleOptSmall.classList.add('active');
+    if (styleOptClean) styleOptClean.classList.remove('active');
+  }
+  updateStylePreviews();
+}
+
+function updateStylePreviews() {
+  const raw = (clanNameInput && clanNameInput.value.trim()) || 'strikers';
+  if (previewSmallCaps) previewSmallCaps.textContent = formatClanMoniker(raw, 'small_caps');
+  if (previewCleanBold) previewCleanBold.textContent = formatClanMoniker(raw, 'clean_bold');
+}
+
+if (styleOptSmall) {
+  styleOptSmall.addEventListener('click', () => setMonikerStyle('small_caps'));
+  styleOptSmall.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setMonikerStyle('small_caps');
+    }
+  });
+}
+
+if (styleOptClean) {
+  styleOptClean.addEventListener('click', () => setMonikerStyle('clean_bold'));
+  styleOptClean.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setMonikerStyle('clean_bold');
+    }
+  });
+}
+
+if (clanNameInput) {
+  clanNameInput.addEventListener('input', () => {
+    updateStylePreviews();
+  });
+}
+
 function checkExistingLock() {
   const rawLock = localStorage.getItem(LOCK_STORAGE_KEY);
   if (!rawLock) return false;
@@ -622,7 +704,7 @@ function checkExistingLock() {
     if (now - lockData.timestamp < thirtyDaysMs) {
       // Still locked
       const daysLeft = Math.ceil((thirtyDaysMs - (now - lockData.timestamp)) / (24 * 60 * 60 * 1000));
-      applyLockState(lockData.moniker, daysLeft);
+      applyLockState(lockData.moniker, daysLeft, lockData.style);
       return true;
     } else {
       localStorage.removeItem(LOCK_STORAGE_KEY);
@@ -633,7 +715,7 @@ function checkExistingLock() {
   }
 }
 
-function applyLockState(moniker, daysLeft) {
+function applyLockState(moniker, daysLeft, style) {
   isMonikerLocked = true;
   currentFormattedName = moniker;
   formattedOutput.textContent = moniker;
@@ -642,6 +724,19 @@ function applyLockState(moniker, daysLeft) {
   generateNameBtn.disabled = true;
   generateNameBtn.textContent = 'Moniker Locked';
   copyBtn.disabled = false;
+
+  if (style) {
+    currentStyle = style;
+  }
+  if (styleOptSmall) styleOptSmall.classList.add('disabled');
+  if (styleOptClean) styleOptClean.classList.add('disabled');
+  if (currentStyle === 'clean_bold') {
+    if (styleOptClean) styleOptClean.classList.add('active');
+    if (styleOptSmall) styleOptSmall.classList.remove('active');
+  } else {
+    if (styleOptSmall) styleOptSmall.classList.add('active');
+    if (styleOptClean) styleOptClean.classList.remove('active');
+  }
 
   lockoutNotice.classList.remove('hidden');
   const lockP = lockoutNotice.querySelector('p');
@@ -658,6 +753,9 @@ function unlockNameMaker() {
   pageSubtitle.textContent = `Welcome, @${verifiedApplicant.discordUsername}. Choose your moniker carefully. Once confirmed, it is locked to your identity for 30 days.`;
   stepPill.textContent = 'Step 2 of 2 (Unlocked)';
   stepPill.classList.add('active');
+
+  setMonikerStyle(currentStyle);
+  updateStylePreviews();
 
   if (!checkExistingLock()) {
     clanNameInput.focus();
@@ -682,7 +780,7 @@ generateNameBtn.addEventListener('click', () => {
   }
 
   pendingChosenRawName = rawVal;
-  pendingFormattedName = formatClanMoniker(rawVal);
+  pendingFormattedName = formatClanMoniker(rawVal, currentStyle);
 
   const username = verifiedApplicant ? verifiedApplicant.discordUsername : "Member";
   modalConfirmUsername.textContent = `@${username}`;
@@ -750,6 +848,7 @@ proceedConfirmBtn.addEventListener('click', async () => {
       const lockData = {
         username: username,
         moniker: pendingFormattedName,
+        style: currentStyle,
         timestamp: Date.now()
       };
       localStorage.setItem(LOCK_STORAGE_KEY, JSON.stringify(lockData));
@@ -758,7 +857,7 @@ proceedConfirmBtn.addEventListener('click', async () => {
       confirmModal.classList.add('hidden');
 
       // Apply lock UI
-      applyLockState(pendingFormattedName, 30);
+      applyLockState(pendingFormattedName, 30, currentStyle);
       showAlert(monikerAlert, `Moniker locked and registered successfully! You may now copy your official tag.`, 'success');
     } else {
       throw new Error(`Discord returned HTTP ${response.status}`);
@@ -806,6 +905,10 @@ function showCopySuccess() {
 document.addEventListener('DOMContentLoaded', () => {
   renderFavGameList();
   renderGamesPlayedList();
+
+  // Restore typography variant style
+  setMonikerStyle(currentStyle);
+  updateStylePreviews();
 
   // Check if applicant is already verified in localStorage
   const savedApplicant = localStorage.getItem(APPLICANT_STORAGE_KEY);
