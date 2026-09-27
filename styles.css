@@ -1148,3 +1148,259 @@ input::placeholder {
     justify-content: center;
   }
 }
+
+/* ==========================================================================
+   DISCORD PROFILE CARD & USER ID VERIFICATION SYSTEM
+   ========================================================================== */
+
+.discord-input-row {
+  display: flex;
+  gap: 0.65rem;
+  align-items: stretch;
+}
+
+.discord-input-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.discord-prefix {
+  position: absolute;
+  left: 0.85rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  pointer-events: none;
+}
+
+.discord-input-wrapper input {
+  width: 100%;
+  padding-left: 2.1rem;
+}
+
+.btn-verify-discord {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 1.15rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all var(--transition-fast);
+}
+
+.btn-verify-discord:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--border-focus);
+}
+
+.btn-verify-discord:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Discord Profile Card */
+.discord-profile-card {
+  position: relative;
+  background-color: #111214;
+  border: 1px solid #232428;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  transition: all var(--transition-fast);
+}
+
+.discord-profile-card.hidden {
+  display: none !important;
+}
+
+.discord-profile-card.ineligible {
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.discord-profile-card.eligible {
+  border-color: rgba(52, 211, 153, 0.4);
+}
+
+.dcard-banner {
+  height: 64px;
+  background: linear-gradient(135deg, #1e1f22 0%, #2b2d31 100%);
+  background-size: cover;
+  background-position: center;
+}
+
+.dcard-body {
+  padding: 0 1rem 0.85rem;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.dcard-avatar-wrapper {
+  position: relative;
+  margin-top: -32px;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background-color: #111214;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.dcard-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  background-color: #1e1f22;
+}
+
+.dcard-decoration {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 80px;
+  height: 80px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.dcard-status-dot {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: #23a55a;
+  border: 3px solid #111214;
+  z-index: 3;
+}
+
+.dcard-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-bottom: 0.2rem;
+}
+
+.dcard-names {
+  display: flex;
+  flex-direction: column;
+}
+
+.dcard-display-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #f2f3f5;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.dcard-username {
+  font-size: 0.8rem;
+  color: #949ba4;
+  font-family: var(--font-sans);
+}
+
+.dcard-badges-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+}
+
+.dcard-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 12px;
+}
+
+.age-badge {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #dbdee1;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.legit-badge.eligible {
+  background-color: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.25);
+}
+
+.legit-badge.ineligible {
+  background-color: rgba(248, 113, 113, 0.12);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.25);
+}
+
+.dcard-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1rem;
+  background-color: #1e1f22;
+  border-top: 1px solid #2b2d31;
+  font-size: 0.76rem;
+}
+
+.dcard-created-info {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.footer-label {
+  color: #949ba4;
+}
+
+.footer-value {
+  color: #dbdee1;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.dcard-eligibility {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  font-size: 0.74rem;
+}
+
+.dcard-eligibility.eligible {
+  color: #34d399;
+}
+
+.dcard-eligibility.ineligible {
+  color: #f87171;
+}
+
+.status-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.dcard-eligibility.eligible .status-indicator {
+  background-color: #34d399;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
+}
+
+.dcard-eligibility.ineligible .status-indicator {
+  background-color: #f87171;
+  box-shadow: 0 0 8px rgba(248, 113, 113, 0.6);
+}

@@ -35,22 +35,72 @@
       <!-- STEP 1: Verification Intake Form -->
       <section id="stepVerification" class="flow-step">
         <form id="verificationForm" novalidate>
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label for="discordUsername">
-                Exact Discord Username <span class="req">*</span>
-                <span class="label-hint">Handle, not display name</span>
-              </label>
-              <input 
-                type="text" 
-                id="discordUsername" 
-                name="discordUsername" 
-                placeholder="e.g. striker99 (no @)" 
-                required 
-                autocomplete="off"
-              />
+          <!-- Discord ID Verification & Legitimacy Gate -->
+          <div class="form-group discord-verify-group">
+            <label for="discordUserId">
+              <span class="label-text">Discord User ID (Snowflake) <span class="req">*</span></span>
+              <span class="label-hint">Right click profile &gt; Copy User ID</span>
+            </label>
+            <div class="discord-input-row">
+              <div class="discord-input-wrapper">
+                <span class="discord-prefix">#</span>
+                <input 
+                  type="text" 
+                  id="discordUserId" 
+                  name="discordUserId" 
+                  placeholder="e.g. 1127146188701970442 (17-20 digits)" 
+                  required 
+                  autocomplete="off"
+                  maxlength="21"
+                />
+              </div>
+              <button type="button" id="verifyDiscordBtn" class="btn-verify-discord">
+                <span class="btn-text">Verify Identity</span>
+                <span class="btn-loader hidden"></span>
+              </button>
             </div>
+            <input type="hidden" id="discordUsername" name="discordUsername" required />
+          </div>
 
+          <!-- Dynamic Discord Profile Card Preview Container -->
+          <div id="discordProfileCard" class="discord-profile-card hidden">
+            <div class="dcard-banner" id="dcardBanner"></div>
+            <div class="dcard-body">
+              <div class="dcard-avatar-wrapper">
+                <img id="dcardAvatar" class="dcard-avatar" src="" alt="Avatar" />
+                <img id="dcardDecoration" class="dcard-decoration hidden" src="" alt="Decoration" />
+                <div class="dcard-status-dot online"></div>
+              </div>
+              <div class="dcard-info">
+                <div class="dcard-names">
+                  <span id="dcardDisplayName" class="dcard-display-name">Username</span>
+                  <span id="dcardUsername" class="dcard-username">@username</span>
+                </div>
+                <div class="dcard-badges-row">
+                  <div id="dcardAgeBadge" class="dcard-badge age-badge">
+                    <span class="badge-icon">⏳</span>
+                    <span id="dcardAgeText" class="badge-text">Calculating...</span>
+                  </div>
+                  <div id="dcardLegitBadge" class="dcard-badge legit-badge">
+                    <span id="dcardLegitIcon" class="badge-icon">🛡️</span>
+                    <span id="dcardLegitText" class="badge-text">3+ Months Required</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="dcard-footer">
+              <div class="dcard-created-info">
+                <span class="footer-label">Account Created:</span>
+                <span id="dcardCreatedDate" class="footer-value">-</span>
+              </div>
+              <div id="dcardEligibilityStatus" class="dcard-eligibility eligible">
+                <span class="status-indicator"></span>
+                <span id="dcardStatusText">Account Confirmed</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-grid-2">
             <div class="form-group">
               <label for="age">Age <span class="req">*</span></label>
               <input 
@@ -63,29 +113,29 @@
                 required 
               />
             </div>
-          </div>
 
-          <!-- Microphone Availability Question -->
-          <div class="form-group" id="micWrapper">
-            <label>
-              <span class="label-text">Do you Have Mic? <span class="req">*</span></span>
-              <span class="label-hint">Voice comms eligibility</span>
-            </label>
-            <div class="mic-options-grid">
-              <button type="button" class="mic-option" data-value="Yes">
-                <span class="mic-icon">🎙️</span>
-                <span class="mic-text">Yes</span>
-              </button>
-              <button type="button" class="mic-option" data-value="NO">
-                <span class="mic-icon">🔇</span>
-                <span class="mic-text">NO</span>
-              </button>
-              <button type="button" class="mic-option" data-value="Sometimes">
-                <span class="mic-icon">🎧</span>
-                <span class="mic-text">Sometimes</span>
-              </button>
+            <!-- Microphone Availability Question -->
+            <div class="form-group" id="micWrapper">
+              <label>
+                <span class="label-text">Do you Have Mic? <span class="req">*</span></span>
+                <span class="label-hint">Voice comms eligibility</span>
+              </label>
+              <div class="mic-options-grid">
+                <button type="button" class="mic-option" data-value="Yes">
+                  <span class="mic-icon">🎙️</span>
+                  <span class="mic-text">Yes</span>
+                </button>
+                <button type="button" class="mic-option" data-value="NO">
+                  <span class="mic-icon">🔇</span>
+                  <span class="mic-text">NO</span>
+                </button>
+                <button type="button" class="mic-option" data-value="Sometimes">
+                  <span class="mic-icon">🎧</span>
+                  <span class="mic-text">Sometimes</span>
+                </button>
+              </div>
+              <input type="hidden" id="hasMic" name="hasMic" required />
             </div>
-            <input type="hidden" id="hasMic" name="hasMic" required />
           </div>
 
           <!-- Favourite Game Dropdown -->

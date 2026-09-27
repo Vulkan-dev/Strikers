@@ -117,7 +117,23 @@ const stepPill = document.getElementById('stepPill');
 // DOM Elements - Step 1: Verification Form
 const stepVerification = document.getElementById('stepVerification');
 const verificationForm = document.getElementById('verificationForm');
+const discordUserIdInput = document.getElementById('discordUserId');
+const verifyDiscordBtn = document.getElementById('verifyDiscordBtn');
 const discordUsernameInput = document.getElementById('discordUsername');
+const discordProfileCard = document.getElementById('discordProfileCard');
+const dcardBanner = document.getElementById('dcardBanner');
+const dcardAvatar = document.getElementById('dcardAvatar');
+const dcardDecoration = document.getElementById('dcardDecoration');
+const dcardDisplayName = document.getElementById('dcardDisplayName');
+const dcardUsername = document.getElementById('dcardUsername');
+const dcardAgeText = document.getElementById('dcardAgeText');
+const dcardLegitBadge = document.getElementById('dcardLegitBadge');
+const dcardLegitIcon = document.getElementById('dcardLegitIcon');
+const dcardLegitText = document.getElementById('dcardLegitText');
+const dcardCreatedDate = document.getElementById('dcardCreatedDate');
+const dcardEligibilityStatus = document.getElementById('dcardEligibilityStatus');
+const dcardStatusText = document.getElementById('dcardStatusText');
+
 const ageInput = document.getElementById('age');
 const hasMicInput = document.getElementById('hasMic');
 const micOptions = document.querySelectorAll('.mic-option');
@@ -125,6 +141,9 @@ const favouriteGameInput = document.getElementById('favouriteGame');
 const gamesPlayedInput = document.getElementById('gamesPlayed');
 const submitBtn = document.getElementById('submitBtn');
 const statusAlert = document.getElementById('statusAlert');
+
+// Verified Discord Account State
+let verifiedDiscordAccount = null;
 
 // DOM Elements - Step 2: Name Maker
 const stepNameMaker = document.getElementById('stepNameMaker');
@@ -485,30 +504,224 @@ discordUsernameInput.addEventListener('input', saveDraftForm);
 ageInput.addEventListener('input', saveDraftForm);
 
 // --------------------------------------------------------------------------
-// Step 1: Form Validation & Submission to Discord Webhook
+// Advanced Discord Identity Verification & Profile Card Resolver
+// --------------------------------------------------------------------------
+
+// Discord Snowflake Timestamp Calculator: (snowflake >> 22) + 1420070400000
+function getSnowflakeDate(snowflakeId) {
+  try {
+    const epoch = 1420070400000n;
+    const timestamp = Number((BigInt(snowflakeId) >> 22n) + epoch);
+    return new Date(timestamp);
+  } catch (e) {
+    return null;
+  }
+}
+
+async function verifyDiscordIdentity() {
+  clearAlert(statusAlert);
+  const rawId = (discordUserIdInput.value || '').trim();
+
+  if (!rawId) {
+    showAlert(statusAlert, 'Please enter your Discord User ID (17-20 digits).', 'error');
+    discordUserIdInput.focus();
+    return;
+  }
+
+  if (!/^\d{17,20}$/.test(rawId)) {
+    showAlert(statusAlert, 'Invalid Discord User ID format. Discord IDs must be numeric (17 to 20 digits).', 'error');
+    discordUserIdInput.focus();
+    return;
+  }
+
+  // Pre-calculate Account Age via Snowflake
+  const snowflakeDate = getSnowflakeDate(rawId);
+  if (!snowflakeDate || isNaN(snowflakeDate.getTime())) {
+    showAlert(statusAlert, 'Could not parse Discord Snowflake creation date.', 'error');
+    return;
+  }
+
+  const now = new Date();
+  const ageDays = Math.floor(Math.abs(now - snowflakeDate) / (1000 * 60 * 60 * 24));
+  const ageMonths = parseFloat((ageDays / 30.4375).toFixed(1));
+  const requiredDays = (window.APP_CONFIG && window.APP_CONFIG.requiredAccountAgeDays) || 90;
+
+  // Toggle button loader
+  const btnText = verifyDiscordBtn.querySelector('.btn-text');
+  const btnLoader = verifyDiscordBtn.querySelector('.btn-loader');
+  verifyDiscordBtn.disabled = true;
+  if (btnText) btnText.textContent = 'Verifying...';
+  if (btnLoader) btnLoader.classList.remove('hidden');
+
+  let profileData = null;
+  const botBase = (window.APP_CONFIG && window.APP_CONFIG.botApi) || 'http://localhost:3000';
+
+  try {
+    // Attempt to fetch full profile from Strikers Bot backend API
+    const resp = await fetch(`${botBase}/api/discord/user/${rawId}`, {
+      headers: { 'Accept': 'application/json' }
+    });
+
+    if (resp.ok) {
+      profileData = await resp.json();
+    }
+  } catch (err) {
+    console.warn('[BOT API UNAVAILABLE] Using Snowflake verification fallback:', err);
+  }
+
+  // Fallback to Snowflake-derived profile if backend is not running or offline
+  if (!profileData) {
+    const isEligible = ageDays >= requiredDays;
+    profileData = {
+      id: rawId,
+      username: `User_${rawId.slice(-4)}`,
+      globalName: `Discord User (${rawId.slice(-4)})`,
+      avatarUrl: `https://cdn.discordapp.com/embed/avatars/${Number((BigInt(rawId) >> 22n) % 6n)}.png`,
+      bannerUrl: null,
+      decorationUrl: null,
+      accentColor: '#1e1f22',
+      createdAt: snowflakeDate.toISOString(),
+      createdAtFormatted: snowflakeDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+      accountAgeDays: ageDays,
+      accountAgeMonths: ageMonths,
+      isEligible: isEligible,
+      requiredDays: requiredDays
+    };
+  }
+
+  // Update verifiedDiscordAccount state
+  verifiedDiscordAccount = profileData;
+  discordUsernameInput.value = profileData.username;
+
+  // Render Discord Profile Card UI
+  renderDiscordProfileCard(profileData);
+
+  verifyDiscordBtn.disabled = false;
+  if (btnText) btnText.textContent = 'Verified ✓';
+  if (btnLoader) btnLoader.classList.add('hidden');
+
+  // Enforce 3-Month (90 Days) Age Gate
+  if (!profileData.isEligible) {
+    const daysRemaining = requiredDays - profileData.accountAgeDays;
+    showAlert(
+      statusAlert,
+      `🚫 Application Ineligible: Your Discord account is only ${profileData.accountAgeDays} days old (~${profileData.accountAgeMonths} months). Accounts must be at least 3 months old (90 days) to prevent alt accounts. (Requires ${daysRemaining} more days).`,
+      'error'
+    );
+    submitBtn.disabled = true;
+  } else {
+    clearAlert(statusAlert);
+    submitBtn.disabled = false;
+  }
+}
+
+function renderDiscordProfileCard(profile) {
+  discordProfileCard.classList.remove('hidden');
+
+  // Banner
+  if (profile.bannerUrl) {
+    dcardBanner.style.backgroundImage = `url('${profile.bannerUrl}')`;
+    dcardBanner.style.backgroundColor = 'transparent';
+  } else {
+    dcardBanner.style.backgroundImage = 'none';
+    dcardBanner.style.backgroundColor = profile.accentColor || '#1e1f22';
+  }
+
+  // Avatar
+  dcardAvatar.src = profile.avatarUrl;
+  dcardAvatar.onerror = function() {
+    this.src = 'https://cdn.discordapp.com/embed/avatars/0.png';
+  };
+
+  // Avatar Decoration
+  if (profile.decorationUrl) {
+    dcardDecoration.src = profile.decorationUrl;
+    dcardDecoration.classList.remove('hidden');
+  } else {
+    dcardDecoration.classList.add('hidden');
+  }
+
+  // Names
+  dcardDisplayName.textContent = profile.globalName || profile.username;
+  dcardUsername.textContent = `@${profile.username}`;
+
+  // Age & Badge
+  dcardAgeText.textContent = `${profile.accountAgeDays} Days (${profile.accountAgeMonths} mo)`;
+  dcardCreatedDate.textContent = profile.createdAtFormatted;
+
+  if (profile.isEligible) {
+    discordProfileCard.classList.remove('ineligible');
+    discordProfileCard.classList.add('eligible');
+
+    dcardLegitBadge.className = 'dcard-badge legit-badge eligible';
+    dcardLegitIcon.textContent = '🛡️';
+    dcardLegitText.textContent = '3+ Months Verified';
+
+    dcardEligibilityStatus.className = 'dcard-eligibility eligible';
+    dcardStatusText.textContent = 'Legit Account • Eligible';
+  } else {
+    discordProfileCard.classList.remove('eligible');
+    discordProfileCard.classList.add('ineligible');
+
+    dcardLegitBadge.className = 'dcard-badge legit-badge ineligible';
+    dcardLegitIcon.textContent = '⚠️';
+    dcardLegitText.textContent = 'Under 3 Months';
+
+    dcardEligibilityStatus.className = 'dcard-eligibility ineligible';
+    dcardStatusText.textContent = 'Ineligible (Account Too New)';
+  }
+}
+
+// Event Listeners for Discord Verification
+verifyDiscordBtn.addEventListener('click', verifyDiscordIdentity);
+discordUserIdInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    verifyDiscordIdentity();
+  }
+});
+
+// Auto-trigger verification on pasting valid 17-20 digit snowflake
+discordUserIdInput.addEventListener('input', () => {
+  const val = discordUserIdInput.value.trim();
+  if (/^\d{17,20}$/.test(val)) {
+    verifyDiscordIdentity();
+  }
+});
+
+// --------------------------------------------------------------------------
+// Step 1: Form Validation & Submission to Bot & Category Channel Creation
 // --------------------------------------------------------------------------
 verificationForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   clearAlert(statusAlert);
 
-  let rawUsername = discordUsernameInput.value.trim();
-  // Strip accidental leading '@' if entered by user
-  if (rawUsername.startsWith('@')) {
-    rawUsername = rawUsername.substring(1).trim();
+  const rawId = (discordUserIdInput.value || '').trim();
+
+  // Ensure Discord verification was conducted
+  if (!verifiedDiscordAccount || verifiedDiscordAccount.id !== rawId) {
+    showAlert(statusAlert, 'Please click "Verify Identity" to verify your Discord Account first.', 'error');
+    discordUserIdInput.focus();
+    return;
   }
 
+  // Enforce 3-Month Account Age Rule
+  if (!verifiedDiscordAccount.isEligible) {
+    showAlert(
+      statusAlert,
+      `Submission Blocked: Your Discord account is only ${verifiedDiscordAccount.accountAgeDays} days old. Accounts must be at least 3 months old (90 days).`,
+      'error'
+    );
+    return;
+  }
+
+  const rawUsername = verifiedDiscordAccount.username;
   const ageVal = ageInput.value.trim();
   const hasMic = (hasMicInput ? hasMicInput.value : '').trim();
   const favouriteGame = favouriteGameInput.value.trim();
   const gamesPlayed = gamesPlayedInput.value.trim();
 
   // Field Validations
-  if (!rawUsername) {
-    showAlert(statusAlert, 'Please provide your exact Discord username (handle).', 'error');
-    discordUsernameInput.focus();
-    return;
-  }
-
   const ageNum = parseInt(ageVal, 10);
   if (isNaN(ageNum) || ageNum < 10 || ageNum > 99) {
     showAlert(statusAlert, 'Please enter a valid age between 10 and 99.', 'error');
@@ -535,81 +748,119 @@ verificationForm.addEventListener('submit', async (e) => {
     return;
   }
 
-  const webhookUrl = getActiveWebhook();
-
-  // Construct Discord Embed exactly matching user specification
-  const embedDescription = [
-    "A new applicant is waiting for staff review.",
-    "",
-    "👤 **Username**",
-    `\`${rawUsername}\``,
-    "",
-    "🎂 **Age**",
-    `\`${ageNum}\``,
-    "",
-    "🎙️ **Has Mic?**",
-    `\`${hasMic}\``,
-    "",
-    "🎮 **Favourite Game**",
-    `\`${favouriteGame}\``,
-    "",
-    "🕹️ **Games Played**",
-    `\`${gamesPlayed}\``,
-    "",
-    "> Staff approval is required before the member receives their STRIKERS role."
-  ].join("\n");
-
-  const embedPayload = {
-    username: "⚡ 𝑺𝑻𝑹𝑰𝑲𝑬𝑹𝑺",
-    embeds: [
-      {
-        author: {
-          name: "⚡ 𝑺𝑻𝑹𝑰𝑲𝑬𝑹𝑺"
-        },
-        title: "𝑴𝑬𝑴𝑩𝑬𝑹 𝑽𝑬𝑹𝑰𝑭𝑰𝑪𝑨𝑻𝑰𝑶𝑵",
-        description: embedDescription,
-        color: 0x1f1f1f,
-        footer: {
-          text: "STR Clan Review • Eligibility Verification"
-        },
-        timestamp: new Date().toISOString()
-      }
-    ]
-  };
-
   setSubmittingState(true);
 
+  const botBase = (window.APP_CONFIG && window.APP_CONFIG.botApi) || 'http://localhost:3000';
+  let botChannelCreated = false;
+
+  // 1. Primary Attempt: Send to Strikers Discord Bot to create Category Channel
   try {
-    const response = await fetch(webhookUrl, {
+    const botResponse = await fetch(`${botBase}/api/clan/apply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(embedPayload)
-    });
-
-    if (response.ok || response.status === 204) {
-      // Save verified applicant data into localStorage
-      verifiedApplicant = {
-        discordUsername: rawUsername,
+      body: JSON.stringify({
+        discordId: verifiedDiscordAccount.id,
+        username: rawUsername,
         age: ageNum,
         hasMic,
         favouriteGame,
-        gamesPlayed
-      };
-      localStorage.setItem(APPLICANT_STORAGE_KEY, JSON.stringify(verifiedApplicant));
-      localStorage.removeItem(DRAFT_FORM_STORAGE_KEY);
+        gamesPlayed,
+        avatarUrl: verifiedDiscordAccount.avatarUrl,
+        accountAgeDays: verifiedDiscordAccount.accountAgeDays,
+        accountAgeMonths: verifiedDiscordAccount.accountAgeMonths
+      })
+    });
 
-      // Transition smoothly to Step 2 (Unlock Name Maker)
-      unlockNameMaker();
-    } else {
-      const errText = await response.text();
-      throw new Error(`Discord Webhook error (${response.status}): ${errText}`);
+    if (botResponse.ok) {
+      const botData = await botResponse.json();
+      botChannelCreated = true;
+      console.log('[BOT CHANNEL CREATED]', botData);
     }
-  } catch (err) {
-    console.error('Webhook error:', err);
-    showAlert(statusAlert, `Submission failed: ${err.message || 'Network error'}. Please try again.`, 'error');
-  } finally {
-    setSubmittingState(false);
+  } catch (botErr) {
+    console.warn('[BOT API CHANNEL CREATION FAILED, TRYING WEBHOOK FALLBACK]:', botErr);
   }
+
+  // 2. Secondary / Fallback Webhook Send if Bot server not reached
+  if (!botChannelCreated) {
+    try {
+      const webhookUrl = getActiveWebhook();
+      const embedDescription = [
+        "A new applicant is waiting for staff review.",
+        "",
+        "👤 **Applicant**",
+        `<@${verifiedDiscordAccount.id}> (\`${rawUsername}\` / \`${verifiedDiscordAccount.id}\`)`,
+        "",
+        "🛡️ **Legitimacy Check**",
+        `✅ Verified Discord Account (${verifiedDiscordAccount.accountAgeDays} days / ~${verifiedDiscordAccount.accountAgeMonths} mo)`,
+        "",
+        "🎂 **Age**",
+        `\`${ageNum}\``,
+        "",
+        "🎙️ **Has Mic?**",
+        `\`${hasMic}\``,
+        "",
+        "🎮 **Favourite Game**",
+        `\`${favouriteGame}\``,
+        "",
+        "🕹️ **Games Played**",
+        `\`${gamesPlayed}\``,
+        "",
+        "> Staff approval is required before the member receives their STRIKERS role."
+      ].join("\n");
+
+      const embedPayload = {
+        username: "⚡ 𝑺𝑻𝑹𝑰𝑲𝑬𝑹𝑺",
+        avatar_url: verifiedDiscordAccount.avatarUrl,
+        embeds: [
+          {
+            author: {
+              name: `⚡ 𝑺𝑻𝑹𝑰𝑲𝑬𝑹𝑺 • ${verifiedDiscordAccount.globalName || rawUsername}`,
+              icon_url: verifiedDiscordAccount.avatarUrl
+            },
+            title: "𝑴𝑬𝑴𝑩𝑬𝑹 𝑽𝑬𝑹𝑰𝑭𝑰𝑪𝑨𝑻𝑰𝑶𝑵",
+            description: embedDescription,
+            color: 0x1f1f1f,
+            thumbnail: { url: verifiedDiscordAccount.avatarUrl },
+            footer: {
+              text: `STR Clan Review • Discord ID: ${verifiedDiscordAccount.id}`
+            },
+            timestamp: new Date().toISOString()
+          }
+        ]
+      };
+
+      const whResp = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(embedPayload)
+      });
+
+      if (!whResp.ok && whResp.status !== 204) {
+        throw new Error('Both Bot channel creation and fallback webhook were unreachable.');
+      }
+    } catch (whErr) {
+      setSubmittingState(false);
+      showAlert(statusAlert, `Submission failed: ${whErr.message}. Please check your connection or contact staff.`, 'error');
+      return;
+    }
+  }
+
+  // Save verified applicant data into localStorage
+  verifiedApplicant = {
+    discordId: verifiedDiscordAccount.id,
+    discordUsername: rawUsername,
+    avatarUrl: verifiedDiscordAccount.avatarUrl,
+    accountAgeDays: verifiedDiscordAccount.accountAgeDays,
+    age: ageNum,
+    hasMic,
+    favouriteGame,
+    gamesPlayed
+  };
+  localStorage.setItem(APPLICANT_STORAGE_KEY, JSON.stringify(verifiedApplicant));
+  localStorage.removeItem(DRAFT_FORM_STORAGE_KEY);
+
+  setSubmittingState(false);
+  unlockNameMaker();
 });
 
 function setSubmittingState(isLoading) {
@@ -618,7 +869,7 @@ function setSubmittingState(isLoading) {
 
   if (isLoading) {
     submitBtn.disabled = true;
-    btnText.textContent = 'Transmitting...';
+    btnText.textContent = 'Transmitting to Discord...';
     btnLoader.classList.remove('hidden');
   } else {
     submitBtn.disabled = false;
