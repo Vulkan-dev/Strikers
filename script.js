@@ -659,6 +659,17 @@ function renderDiscordProfileCard(profile) {
   // Avatar Decoration
   if (profile.decorationUrl) {
     dcardDecoration.src = profile.decorationUrl;
+    dcardDecoration.onerror = function() {
+      if (!this.dataset.fallbackTried && profile.id) {
+        this.dataset.fallbackTried = 'true';
+        const assetMatch = profile.decorationUrl.match(/\/([^/]+)\.png/);
+        if (assetMatch) {
+          this.src = `https://cdn.discordapp.com/avatar-decorations/${profile.id}/${assetMatch[1]}.png`;
+          return;
+        }
+      }
+      this.classList.add('hidden');
+    };
     dcardDecoration.classList.remove('hidden');
   } else {
     dcardDecoration.classList.add('hidden');
