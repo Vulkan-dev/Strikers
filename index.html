@@ -39,7 +39,7 @@
           <div class="form-group discord-verify-group">
             <label for="discordUserId">
               <span class="label-text">Discord User ID (Snowflake) <span class="req">*</span></span>
-              <span class="label-hint">Right click profile &gt; Copy User ID</span>
+              <span class="label-hint">Required for 3-month account age check</span>
             </label>
             <div class="discord-input-row">
               <div class="discord-input-wrapper">
@@ -59,7 +59,11 @@
                 <span class="btn-loader hidden"></span>
               </button>
             </div>
+            <div class="id-helper-box">
+              <span class="id-helper-text">💡 <strong>How to find your Discord ID:</strong> Settings ➔ Advanced ➔ Turn ON <strong>Developer Mode</strong> ➔ Right-click your Discord avatar / profile ➔ Click <strong>"Copy User ID"</strong>.</span>
+            </div>
             <input type="hidden" id="discordUsername" name="discordUsername" required />
+            <input type="hidden" id="discordAuthToken" name="discordAuthToken" />
           </div>
 
           <!-- Dynamic Discord Profile Card Preview Container -->
@@ -73,9 +77,13 @@
               </div>
               <div class="dcard-info">
                 <div class="dcard-names">
-                  <span id="dcardDisplayName" class="dcard-display-name">Username</span>
+                  <div class="dcard-names-row">
+                    <span id="dcardDisplayName" class="dcard-display-name">Username</span>
+                    <span id="dcardPronouns" class="dcard-pronouns hidden"></span>
+                  </div>
                   <span id="dcardUsername" class="dcard-username">@username</span>
                 </div>
+                <div id="dcardPublicBadges" class="dcard-public-badges"></div>
                 <div class="dcard-badges-row">
                   <div id="dcardAgeBadge" class="dcard-badge age-badge">
                     <span class="badge-icon">⏳</span>

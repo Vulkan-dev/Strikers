@@ -142,6 +142,11 @@ const gamesPlayedInput = document.getElementById('gamesPlayed');
 const submitBtn = document.getElementById('submitBtn');
 const statusAlert = document.getElementById('statusAlert');
 
+// OAuth Anti-Abuse Elements
+const discordOAuthBtn = document.getElementById('discordOAuthBtn');
+const discordAuthTokenInput = document.getElementById('discordAuthToken');
+let discordAuthToken = localStorage.getItem('str_discord_auth_token') || null;
+
 // Verified Discord Account State
 let verifiedDiscordAccount = null;
 
@@ -554,19 +559,35 @@ async function verifyDiscordIdentity() {
   if (btnLoader) btnLoader.classList.remove('hidden');
 
   let profileData = null;
-  const botBase = (window.APP_CONFIG && window.APP_CONFIG.botApi) || 'http://localhost:3000';
 
   try {
-    // Attempt to fetch full profile from Strikers Bot backend API
-    const resp = await fetch(`${botBase}/api/discord/user/${rawId}`, {
+    // 1. Fetch live profile via Vercel serverless function /api/discord-lookup
+    const resp = await fetch(`/api/discord-lookup?id=${rawId}`, {
       headers: { 'Accept': 'application/json' }
     });
 
     if (resp.ok) {
-      profileData = await resp.json();
+      const data = await resp.json();
+      profileData = {
+        id: data.id,
+        username: data.username,
+        globalName: data.global_name || data.username,
+        pronouns: data.pronouns || null,
+        avatarUrl: data.avatar_url,
+        bannerUrl: data.banner_url,
+        decorationUrl: data.avatar_decoration_url,
+        accentColor: data.accent_color || '#1e1f22',
+        badges: data.badges || [],
+        createdAt: data.created_at,
+        createdAtFormatted: new Date(data.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+        accountAgeDays: data.age_days,
+        accountAgeMonths: data.age_months,
+        isEligible: data.is_eligible,
+        requiredDays: requiredDays
+      };
     }
   } catch (err) {
-    console.warn('[BOT API UNAVAILABLE] Using Snowflake verification fallback:', err);
+    console.warn('[SERVERLESS LOOKUP ERROR] Using Snowflake verification fallback:', err);
   }
 
   // Fallback to Snowflake-derived profile if backend is not running or offline
@@ -576,10 +597,12 @@ async function verifyDiscordIdentity() {
       id: rawId,
       username: `User_${rawId.slice(-4)}`,
       globalName: `Discord User (${rawId.slice(-4)})`,
+      pronouns: null,
       avatarUrl: `https://cdn.discordapp.com/embed/avatars/${Number((BigInt(rawId) >> 22n) % 6n)}.png`,
       bannerUrl: null,
       decorationUrl: null,
       accentColor: '#1e1f22',
+      badges: [],
       createdAt: snowflakeDate.toISOString(),
       createdAtFormatted: snowflakeDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
       accountAgeDays: ageDays,
@@ -641,9 +664,36 @@ function renderDiscordProfileCard(profile) {
     dcardDecoration.classList.add('hidden');
   }
 
-  // Names
+  // Names & Pronouns
   dcardDisplayName.textContent = profile.globalName || profile.username;
   dcardUsername.textContent = `@${profile.username}`;
+
+  const dcardPronouns = document.getElementById('dcardPronouns');
+  if (dcardPronouns) {
+    if (profile.pronouns) {
+      dcardPronouns.textContent = profile.pronouns;
+      dcardPronouns.classList.remove('hidden');
+    } else {
+      dcardPronouns.classList.add('hidden');
+    }
+  }
+
+  // Badges
+  const dcardPublicBadges = document.getElementById('dcardPublicBadges');
+  if (dcardPublicBadges) {
+    dcardPublicBadges.innerHTML = '';
+    if (profile.badges && profile.badges.length > 0) {
+      profile.badges.forEach(b => {
+        const badgeSpan = document.createElement('span');
+        badgeSpan.className = 'dcard-public-badge';
+        badgeSpan.textContent = b.name;
+        dcardPublicBadges.appendChild(badgeSpan);
+      });
+      dcardPublicBadges.classList.remove('hidden');
+    } else {
+      dcardPublicBadges.classList.add('hidden');
+    }
+  }
 
   // Age & Badge
   dcardAgeText.textContent = `${profile.accountAgeDays} Days (${profile.accountAgeMonths} mo)`;
@@ -658,7 +708,9 @@ function renderDiscordProfileCard(profile) {
     dcardLegitText.textContent = '3+ Months Verified';
 
     dcardEligibilityStatus.className = 'dcard-eligibility eligible';
-    dcardStatusText.textContent = 'Legit Account • Eligible';
+    dcardStatusText.textContent = 'Account Confirmed • Eligible';
+    clearAlert(statusAlert);
+    submitBtn.disabled = false;
   } else {
     discordProfileCard.classList.remove('eligible');
     discordProfileCard.classList.add('ineligible');
@@ -669,11 +721,94 @@ function renderDiscordProfileCard(profile) {
 
     dcardEligibilityStatus.className = 'dcard-eligibility ineligible';
     dcardStatusText.textContent = 'Ineligible (Account Too New)';
+    submitBtn.disabled = true;
   }
 }
 
 // Event Listeners for Discord Verification
 verifyDiscordBtn.addEventListener('click', verifyDiscordIdentity);
+
+// --------------------------------------------------------------------------
+// Discord OAuth2 Authorization Flow (Anti-Abuse)
+// --------------------------------------------------------------------------
+async function initiateDiscordOAuth() {
+  const botBase = (window.APP_CONFIG && window.APP_CONFIG.botApi) || 'http://localhost:3000';
+  let authUrl = null;
+
+  try {
+    const res = await fetch(`${botBase}/api/clan/auth-url`);
+    if (res.ok) {
+      const data = await res.json();
+      authUrl = data.authUrl;
+    }
+  } catch (e) {
+    console.warn('Failed to fetch auth-url dynamically, fallback to default:', e);
+  }
+
+  if (!authUrl) {
+    const clientId = '1553647181326581770';
+    const redirectUri = `${botBase}/api/auth/callback`;
+    authUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=identify&state=clan_portal`;
+  }
+
+  // Save current window URL so the callback can return if direct redirect
+  localStorage.setItem('str_portal_return_url', window.location.href.split('?')[0]);
+
+  // Open OAuth popup window
+  const width = 500, height = 750;
+  const left = window.screenX + (window.outerWidth - width) / 2;
+  const top = window.screenY + (window.outerHeight - height) / 2;
+  const popup = window.open(authUrl, 'discord_oauth', `width=${width},height=${height},left=${left},top=${top}`);
+
+  if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+    // Popup blocked, fallback to normal navigation
+    window.location.href = authUrl;
+  }
+}
+
+if (discordOAuthBtn) {
+  discordOAuthBtn.addEventListener('click', initiateDiscordOAuth);
+}
+
+// Listen for OAuth message from authorization popup window
+window.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'STR_DISCORD_AUTH_SUCCESS') {
+    handleOAuthSuccess(event.data.data);
+  }
+});
+
+function handleOAuthSuccess(authData) {
+  if (!authData || !authData.userId) return;
+  discordAuthToken = authData.token;
+  localStorage.setItem('str_discord_auth_token', authData.token);
+  if (discordAuthTokenInput) discordAuthTokenInput.value = authData.token;
+
+  // Auto-fill and lock Discord User ID input
+  discordUserIdInput.value = authData.userId;
+  discordUserIdInput.readOnly = true;
+
+  if (discordOAuthBtn) {
+    discordOAuthBtn.classList.add('authorized');
+    discordOAuthBtn.innerHTML = `<span>✓ Authorized (@${authData.username})</span>`;
+    discordOAuthBtn.disabled = true;
+  }
+
+  // Automatically trigger Discord identity verification and profile card render
+  verifyDiscordIdentity();
+}
+
+// Check URL params for direct OAuth redirect fallback (?auth_token=...&user_id=...)
+(function checkUrlOAuth() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = urlParams.get('auth_token');
+  const userId = urlParams.get('user_id');
+  if (token && userId) {
+    handleOAuthSuccess({ token, userId, username: 'Verified User' });
+    // Clean URL query parameters
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+})();
+
 discordUserIdInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
@@ -750,17 +885,17 @@ verificationForm.addEventListener('submit', async (e) => {
 
   setSubmittingState(true);
 
-  const botBase = (window.APP_CONFIG && window.APP_CONFIG.botApi) || 'http://localhost:3000';
-  let botChannelCreated = false;
+  let submissionSuccess = false;
+  let responseData = null;
 
-  // 1. Primary Attempt: Send to Strikers Discord Bot to create Category Channel
+  // 1. Submit via Vercel Serverless Function (Creates category channel via Bot API or dispatches embed)
   try {
-    const botResponse = await fetch(`${botBase}/api/clan/apply`, {
+    const apiResp = await fetch('/api/submit-application', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        discordId: verifiedDiscordAccount.id,
-        username: rawUsername,
+        discordUserId: verifiedDiscordAccount.id,
+        discordUsername: rawUsername,
         age: ageNum,
         hasMic,
         favouriteGame,
@@ -771,24 +906,26 @@ verificationForm.addEventListener('submit', async (e) => {
       })
     });
 
-    if (botResponse.ok) {
-      const botData = await botResponse.json();
-      botChannelCreated = true;
-      console.log('[BOT CHANNEL CREATED]', botData);
+    if (apiResp.ok) {
+      responseData = await apiResp.json();
+      submissionSuccess = true;
+    } else {
+      const errJson = await apiResp.json().catch(() => ({}));
+      console.warn('Serverless submit-application returned status:', apiResp.status, errJson);
     }
-  } catch (botErr) {
-    console.warn('[BOT API CHANNEL CREATION FAILED, TRYING WEBHOOK FALLBACK]:', botErr);
+  } catch (apiErr) {
+    console.warn('Serverless endpoint not reachable, falling back to direct webhook:', apiErr);
   }
 
-  // 2. Secondary / Fallback Webhook Send if Bot server not reached
-  if (!botChannelCreated) {
+  // 2. Direct Webhook Fallback if serverless API wasn't reached (e.g. static local file preview)
+  if (!submissionSuccess) {
     try {
       const webhookUrl = getActiveWebhook();
       const embedDescription = [
         "A new applicant is waiting for staff review.",
         "",
         "👤 **Applicant**",
-        `<@${verifiedDiscordAccount.id}> (\`${rawUsername}\` / \`${verifiedDiscordAccount.id}\`)`,
+        `<@${verifiedDiscordAccount.id}> (\`@${rawUsername}\` / \`${verifiedDiscordAccount.id}\`)`,
         "",
         "🛡️ **Legitimacy Check**",
         `✅ Verified Discord Account (${verifiedDiscordAccount.accountAgeDays} days / ~${verifiedDiscordAccount.accountAgeMonths} mo)`,
@@ -835,7 +972,9 @@ verificationForm.addEventListener('submit', async (e) => {
         body: JSON.stringify(embedPayload)
       });
 
-      if (!whResp.ok && whResp.status !== 204) {
+      if (whResp.ok || whResp.status === 204) {
+        submissionSuccess = true;
+      } else {
         throw new Error('Both Bot channel creation and fallback webhook were unreachable.');
       }
     } catch (whErr) {
@@ -861,6 +1000,10 @@ verificationForm.addEventListener('submit', async (e) => {
 
   setSubmittingState(false);
   unlockNameMaker();
+
+  if (responseData && responseData.mode === 'bot_channel') {
+    showAlert(monikerAlert, `Channel ${responseData.channelName} created on Discord under category for staff review!`, 'success');
+  }
 });
 
 function setSubmittingState(isLoading) {
