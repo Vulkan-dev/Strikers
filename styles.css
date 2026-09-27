@@ -54,10 +54,13 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
+  width: 100%;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   padding: 2.5rem 1rem;
+  margin: 0 auto;
 }
 
 /* Fluid Canvas Background */
@@ -78,6 +81,7 @@ body {
   z-index: 1;
   width: 100%;
   max-width: 680px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;

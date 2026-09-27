@@ -4,7 +4,6 @@
 // ==========================================================================
 
 const DISCORD_EPOCH = 1420070400000n;
-const FALLBACK_WEBHOOK_B64 = "aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTU1MzQyMjI2OTAxNDA4NTc0My9SdEh6MzQ1d1pWZFltVS1CaTFHblduTE04MjRHcUI1eEg0LXVVT0p1cFJlQTlXQmd5dHJvWm9sQTZXTWtYQW0xLUdEWg==";
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -170,7 +169,10 @@ export default async function handler(req, res) {
   }
 
   // Mode 2: Webhook Fallback
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL || Buffer.from(FALLBACK_WEBHOOK_B64, 'base64').toString('utf-8');
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  if (!webhookUrl) {
+    return res.status(500).json({ error: 'Server configuration error: DISCORD_WEBHOOK_URL environment variable is not set.' });
+  }
 
   try {
     const hookResp = await fetch(webhookUrl, {

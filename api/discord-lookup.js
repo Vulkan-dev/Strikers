@@ -44,16 +44,44 @@ export default async function handler(req, res) {
   }
 
   const { id } = req.query;
-  const rawId = (id || '').trim();
+  let targetId = (id || '').trim();
 
-  if (!rawId || !/^\d{17,20}$/.test(rawId)) {
-    return res.status(400).json({ 
-      error: 'Invalid Discord User ID. A valid Discord Snowflake ID must be 17-20 digits.' 
-    });
+  if (!targetId) {
+    return res.status(400).json({ error: 'Please enter a Discord User ID or Username.' });
+  }
+
+  const botToken = process.env.DISCORD_BOT_TOKEN;
+  const guildId = process.env.DISCORD_GUILD_ID;
+
+  // Resolve Username to ID if not numeric
+  if (!/^\d{17,20}$/.test(targetId)) {
+    if (botToken && guildId) {
+      try {
+        const searchRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/search?query=${encodeURIComponent(targetId)}&limit=1`, {
+          headers: {
+            Authorization: `Bot ${botToken}`,
+            'User-Agent': 'STRClanVerification/2.0'
+          }
+        });
+
+        if (searchRes.ok) {
+          const members = await searchRes.json();
+          if (members && members.length > 0 && members[0].user) {
+            targetId = members[0].user.id;
+          }
+        }
+      } catch (err) {
+        console.warn('Member search failed:', err);
+      }
+    }
+
+    if (!/^\d{17,20}$/.test(targetId)) {
+      return res.status(404).json({ error: 'User not found in the server by that username. Please enter your 17-20 digit Discord ID or ensure you have joined the server.' });
+    }
   }
 
   try {
-    const snowflakeBigInt = BigInt(rawId);
+    const snowflakeBigInt = BigInt(targetId);
     const createdAtMs = Number((snowflakeBigInt >> 22n) + DISCORD_EPOCH);
     const createdAtDate = new Date(createdAtMs);
     const now = new Date();
@@ -66,8 +94,8 @@ export default async function handler(req, res) {
     // Default profile fallback
     const defaultAvatarIndex = Number((snowflakeBigInt >> 22n) % 6n);
     let profile = {
-      id: rawId,
-      username: `user_${rawId.slice(-4)}`,
+      id: targetId,
+      username: `user_${targetId.slice(-4)}`,
       global_name: null,
       pronouns: null,
       avatar_url: `https://cdn.discordapp.com/embed/avatars/${defaultAvatarIndex}.png`,
@@ -84,10 +112,9 @@ export default async function handler(req, res) {
     };
 
     // If DISCORD_BOT_TOKEN is set, fetch full Discord user object via REST API v10
-    const botToken = process.env.DISCORD_BOT_TOKEN;
     if (botToken) {
       try {
-        const discordRes = await fetch(`https://discord.com/api/v10/users/${rawId}`, {
+        const discordRes = await fetch(`https://discord.com/api/v10/users/${targetId}`, {
           headers: {
             Authorization: `Bot ${botToken}`,
             'User-Agent': 'STRClanVerification/2.0'

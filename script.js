@@ -3,17 +3,11 @@
 // Matte Minimal Professional Identity Engine
 // ==========================================================================
 
-// Webhook Endpoint Resolver (Protected & Obfuscated)
-const _VERIFIED_ENDPOINT = "aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTU1MzQyMjI2OTAxNDA4NTc0My9SdEh6MzQ1d1pWZFltVS1CaTFHblduTE04MjRHcUI1eEg0LXVVT0p1cFJlQTlXQmd5dHJvWm9sQTZXTWtYQW0xLUdEWg==";
-
 function getActiveWebhook() {
-  if (window.APP_CONFIG && window.APP_CONFIG.getEndpoint) {
-    try {
-      const ep = window.APP_CONFIG.getEndpoint();
-      if (ep && ep.startsWith('https://')) return ep;
-    } catch {}
+  if (window.APP_CONFIG && window.APP_CONFIG.webhookUrl) {
+    return window.APP_CONFIG.webhookUrl;
   }
-  return atob(_VERIFIED_ENDPOINT);
+  return '';
 }
 
 // Unicode Small Caps Character Mapping
@@ -576,41 +570,75 @@ async function verifyDiscordIdentity() {
   let profileData = null;
   const botBase = (window.APP_CONFIG && window.APP_CONFIG.botApi) || 'http://localhost:3000';
 
+  // 1. Try Vercel Serverless Function first (/api/discord-lookup)
   try {
-    const resp = await fetch(`${botBase}/api/discord/user/${encodeURIComponent(rawId)}`, {
+    const vResp = await fetch(`/api/discord-lookup?id=${encodeURIComponent(rawId)}`, {
       headers: { 'Accept': 'application/json' }
     });
-
-    if (resp.ok) {
-      const data = await resp.json();
+    if (vResp.ok) {
+      const data = await vResp.json();
       profileData = {
         id: data.id,
         username: data.username,
-        globalName: data.globalName || data.username,
-        pronouns: null, // Bot API doesn't provide pronouns
-        avatarUrl: data.avatarUrl,
-        bannerUrl: data.bannerUrl,
-        decorationUrl: data.decorationUrl,
-        accentColor: data.accentColor,
-        badges: [], // Bot API doesn't provide badges
-        createdAt: data.createdAt,
-        createdAtFormatted: data.createdAtFormatted,
-        accountAgeDays: data.accountAgeDays,
-        accountAgeMonths: data.accountAgeMonths,
-        isEligible: data.isEligible,
+        globalName: data.globalName || data.global_name || data.username,
+        pronouns: data.pronouns || null,
+        avatarUrl: data.avatarUrl || data.avatar_url,
+        bannerUrl: data.bannerUrl || data.banner_url,
+        decorationUrl: data.decorationUrl || data.avatar_decoration_url,
+        accentColor: data.accentColor || data.accent_color || '#1e1f22',
+        badges: data.badges || [],
+        createdAt: data.createdAt || data.created_at,
+        createdAtFormatted: data.createdAtFormatted || (data.created_at ? new Date(data.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : ''),
+        accountAgeDays: data.accountAgeDays !== undefined ? data.accountAgeDays : data.age_days,
+        accountAgeMonths: data.accountAgeMonths !== undefined ? data.accountAgeMonths : data.age_months,
+        isEligible: data.isEligible !== undefined ? data.isEligible : data.is_eligible,
         requiredDays: requiredDays
       };
-    } else {
-        const errData = await resp.json().catch(() => ({}));
+    }
+  } catch (vErr) {
+    console.warn('Vercel serverless lookup not reachable, trying Bot API:', vErr);
+  }
+
+  // 2. Fallback to direct Bot API server if Vercel serverless wasn't reachable
+  if (!profileData) {
+    try {
+      const bResp = await fetch(`${botBase}/api/discord/user/${encodeURIComponent(rawId)}`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (bResp.ok) {
+        const data = await bResp.json();
+        profileData = {
+          id: data.id,
+          username: data.username,
+          globalName: data.globalName || data.username,
+          pronouns: null,
+          avatarUrl: data.avatarUrl || data.avatar_url,
+          bannerUrl: data.bannerUrl || data.banner_url,
+          decorationUrl: data.decorationUrl || data.avatar_decoration_url,
+          accentColor: data.accentColor || data.accent_color || '#1e1f22',
+          badges: [],
+          createdAt: data.createdAt,
+          createdAtFormatted: data.createdAtFormatted,
+          accountAgeDays: data.accountAgeDays,
+          accountAgeMonths: data.accountAgeMonths,
+          isEligible: data.isEligible,
+          requiredDays: requiredDays
+        };
+      } else {
+        const errData = await bResp.json().catch(() => ({}));
         showAlert(statusAlert, errData.error || 'Failed to find user. Please check the username or ID.', 'error');
         verifyDiscordBtn.disabled = false;
         if (btnText) btnText.textContent = 'Verify Account';
         if (btnLoader) btnLoader.classList.add('hidden');
         return;
+      }
+    } catch (bErr) {
+      console.warn('Bot API lookup failed:', bErr);
     }
-  } catch (err) {
-    console.warn('[SERVERLESS LOOKUP ERROR] Fetch failed:', err);
-    showAlert(statusAlert, 'Could not connect to the Strikers authentication server.', 'error');
+  }
+
+  if (!profileData) {
+    showAlert(statusAlert, 'Could not resolve Discord account. Please check username/ID or ensure you are in the clan server.', 'error');
     verifyDiscordBtn.disabled = false;
     if (btnText) btnText.textContent = 'Verify Account';
     if (btnLoader) btnLoader.classList.add('hidden');
