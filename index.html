@@ -38,7 +38,7 @@
           <!-- Discord ID Verification & Legitimacy Gate -->
           <div class="form-group discord-verify-group">
             <label for="discordUserId">
-              <span class="label-text">Discord User ID (Snowflake) <span class="req">*</span></span>
+              <span class="label-text">Discord User ID or Username <span class="req">*</span></span>
               <span class="label-hint">Required for 3-month account age check</span>
             </label>
             <div class="discord-input-row">
@@ -48,10 +48,10 @@
                   type="text" 
                   id="discordUserId" 
                   name="discordUserId" 
-                  placeholder="e.g. 1127146188701970442 (17-20 digits)" 
+                  placeholder="e.g. 1127146188701970442 or vulkandev" 
                   required 
                   autocomplete="off"
-                  maxlength="21"
+                  maxlength="32"
                 />
               </div>
               <button type="button" id="verifyDiscordBtn" class="btn-verify-discord">

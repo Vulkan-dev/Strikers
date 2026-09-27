@@ -528,27 +528,11 @@ async function verifyDiscordIdentity() {
   const rawId = (discordUserIdInput.value || '').trim();
 
   if (!rawId) {
-    showAlert(statusAlert, 'Please enter your Discord User ID (17-20 digits).', 'error');
+    showAlert(statusAlert, 'Please enter your Discord User ID or Username.', 'error');
     discordUserIdInput.focus();
     return;
   }
 
-  if (!/^\d{17,20}$/.test(rawId)) {
-    showAlert(statusAlert, 'Invalid Discord User ID format. Discord IDs must be numeric (17 to 20 digits).', 'error');
-    discordUserIdInput.focus();
-    return;
-  }
-
-  // Pre-calculate Account Age via Snowflake
-  const snowflakeDate = getSnowflakeDate(rawId);
-  if (!snowflakeDate || isNaN(snowflakeDate.getTime())) {
-    showAlert(statusAlert, 'Could not parse Discord Snowflake creation date.', 'error');
-    return;
-  }
-
-  const now = new Date();
-  const ageDays = Math.floor(Math.abs(now - snowflakeDate) / (1000 * 60 * 60 * 24));
-  const ageMonths = parseFloat((ageDays / 30.4375).toFixed(1));
   const requiredDays = (window.APP_CONFIG && window.APP_CONFIG.requiredAccountAgeDays) || 90;
 
   // Toggle button loader
@@ -559,10 +543,10 @@ async function verifyDiscordIdentity() {
   if (btnLoader) btnLoader.classList.remove('hidden');
 
   let profileData = null;
+  const botBase = (window.APP_CONFIG && window.APP_CONFIG.botApi) || 'http://localhost:3000';
 
   try {
-    // 1. Fetch live profile via Vercel serverless function /api/discord-lookup
-    const resp = await fetch(`/api/discord-lookup?id=${rawId}`, {
+    const resp = await fetch(`${botBase}/api/discord/user/${encodeURIComponent(rawId)}`, {
       headers: { 'Accept': 'application/json' }
     });
 
@@ -571,45 +555,35 @@ async function verifyDiscordIdentity() {
       profileData = {
         id: data.id,
         username: data.username,
-        globalName: data.global_name || data.username,
-        pronouns: data.pronouns || null,
-        avatarUrl: data.avatar_url,
-        bannerUrl: data.banner_url,
-        decorationUrl: data.avatar_decoration_url,
-        accentColor: data.accent_color || '#1e1f22',
-        badges: data.badges || [],
-        createdAt: data.created_at,
-        createdAtFormatted: new Date(data.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-        accountAgeDays: data.age_days,
-        accountAgeMonths: data.age_months,
-        isEligible: data.is_eligible,
+        globalName: data.globalName || data.username,
+        pronouns: null, // Bot API doesn't provide pronouns
+        avatarUrl: data.avatarUrl,
+        bannerUrl: data.bannerUrl,
+        decorationUrl: data.decorationUrl,
+        accentColor: data.accentColor,
+        badges: [], // Bot API doesn't provide badges
+        createdAt: data.createdAt,
+        createdAtFormatted: data.createdAtFormatted,
+        accountAgeDays: data.accountAgeDays,
+        accountAgeMonths: data.accountAgeMonths,
+        isEligible: data.isEligible,
         requiredDays: requiredDays
       };
+    } else {
+        const errData = await resp.json().catch(() => ({}));
+        showAlert(statusAlert, errData.error || 'Failed to find user. Please check the username or ID.', 'error');
+        verifyDiscordBtn.disabled = false;
+        if (btnText) btnText.textContent = 'Verify Account';
+        if (btnLoader) btnLoader.classList.add('hidden');
+        return;
     }
   } catch (err) {
-    console.warn('[SERVERLESS LOOKUP ERROR] Using Snowflake verification fallback:', err);
-  }
-
-  // Fallback to Snowflake-derived profile if backend is not running or offline
-  if (!profileData) {
-    const isEligible = ageDays >= requiredDays;
-    profileData = {
-      id: rawId,
-      username: `User_${rawId.slice(-4)}`,
-      globalName: `Discord User (${rawId.slice(-4)})`,
-      pronouns: null,
-      avatarUrl: `https://cdn.discordapp.com/embed/avatars/${Number((BigInt(rawId) >> 22n) % 6n)}.png`,
-      bannerUrl: null,
-      decorationUrl: null,
-      accentColor: '#1e1f22',
-      badges: [],
-      createdAt: snowflakeDate.toISOString(),
-      createdAtFormatted: snowflakeDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-      accountAgeDays: ageDays,
-      accountAgeMonths: ageMonths,
-      isEligible: isEligible,
-      requiredDays: requiredDays
-    };
+    console.warn('[SERVERLESS LOOKUP ERROR] Fetch failed:', err);
+    showAlert(statusAlert, 'Could not connect to the Strikers authentication server.', 'error');
+    verifyDiscordBtn.disabled = false;
+    if (btnText) btnText.textContent = 'Verify Account';
+    if (btnLoader) btnLoader.classList.add('hidden');
+    return;
   }
 
   // Update verifiedDiscordAccount state
