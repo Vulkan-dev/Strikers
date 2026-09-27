@@ -65,6 +65,29 @@
             </div>
           </div>
 
+          <!-- Microphone Availability Question -->
+          <div class="form-group" id="micWrapper">
+            <label>
+              <span class="label-text">Do you Have Mic? <span class="req">*</span></span>
+              <span class="label-hint">Voice comms eligibility</span>
+            </label>
+            <div class="mic-options-grid">
+              <button type="button" class="mic-option" data-value="Yes">
+                <span class="mic-icon">🎙️</span>
+                <span class="mic-text">Yes</span>
+              </button>
+              <button type="button" class="mic-option" data-value="NO">
+                <span class="mic-icon">🔇</span>
+                <span class="mic-text">NO</span>
+              </button>
+              <button type="button" class="mic-option" data-value="Sometimes">
+                <span class="mic-icon">🎧</span>
+                <span class="mic-text">Sometimes</span>
+              </button>
+            </div>
+            <input type="hidden" id="hasMic" name="hasMic" required />
+          </div>
+
           <!-- Favourite Game Dropdown -->
           <div class="form-group custom-select-wrapper" id="favGameWrapper">
             <label>

@@ -119,6 +119,8 @@ const stepVerification = document.getElementById('stepVerification');
 const verificationForm = document.getElementById('verificationForm');
 const discordUsernameInput = document.getElementById('discordUsername');
 const ageInput = document.getElementById('age');
+const hasMicInput = document.getElementById('hasMic');
+const micOptions = document.querySelectorAll('.mic-option');
 const favouriteGameInput = document.getElementById('favouriteGame');
 const gamesPlayedInput = document.getElementById('gamesPlayed');
 const submitBtn = document.getElementById('submitBtn');
@@ -191,6 +193,28 @@ function makeGameImg(src, className) {
   };
   return img;
 }
+
+// --------------------------------------------------------------------------
+// Microphone Availability Option Handler
+// --------------------------------------------------------------------------
+function selectMicOption(val) {
+  if (hasMicInput) hasMicInput.value = val;
+  micOptions.forEach(opt => {
+    if (opt.getAttribute('data-value') === val) {
+      opt.classList.add('active');
+    } else {
+      opt.classList.remove('active');
+    }
+  });
+  saveDraftForm();
+}
+
+micOptions.forEach(opt => {
+  opt.addEventListener('click', () => {
+    const val = opt.getAttribute('data-value');
+    selectMicOption(val);
+  });
+});
 
 // --------------------------------------------------------------------------
 // Favourite Game (Single-Select Dropdown)
@@ -474,6 +498,7 @@ verificationForm.addEventListener('submit', async (e) => {
   }
 
   const ageVal = ageInput.value.trim();
+  const hasMic = (hasMicInput ? hasMicInput.value : '').trim();
   const favouriteGame = favouriteGameInput.value.trim();
   const gamesPlayed = gamesPlayedInput.value.trim();
 
@@ -488,6 +513,13 @@ verificationForm.addEventListener('submit', async (e) => {
   if (isNaN(ageNum) || ageNum < 10 || ageNum > 99) {
     showAlert(statusAlert, 'Please enter a valid age between 10 and 99.', 'error');
     ageInput.focus();
+    return;
+  }
+
+  if (!hasMic) {
+    showAlert(statusAlert, 'Please answer whether you have a mic (Yes / NO / Sometimes).', 'error');
+    const micWrapper = document.getElementById('micWrapper');
+    if (micWrapper) micWrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
 
@@ -514,6 +546,9 @@ verificationForm.addEventListener('submit', async (e) => {
     "",
     "🎂 **Age**",
     `\`${ageNum}\``,
+    "",
+    "🎙️ **Has Mic?**",
+    `\`${hasMic}\``,
     "",
     "🎮 **Favourite Game**",
     `\`${favouriteGame}\``,
@@ -556,6 +591,7 @@ verificationForm.addEventListener('submit', async (e) => {
       verifiedApplicant = {
         discordUsername: rawUsername,
         age: ageNum,
+        hasMic,
         favouriteGame,
         gamesPlayed
       };
@@ -604,6 +640,7 @@ function saveDraftForm() {
     const draft = {
       discordUsername: discordUsernameInput ? discordUsernameInput.value : '',
       age: ageInput ? ageInput.value : '',
+      hasMic: hasMicInput ? hasMicInput.value : '',
       favouriteGame: favouriteGameInput ? favouriteGameInput.value : '',
       favGameName: selectedFavGame,
       favGameOther: favGameOtherInput ? favGameOtherInput.value : '',
@@ -623,6 +660,9 @@ function restoreDraftForm() {
     }
     if (draft.age && ageInput) {
       ageInput.value = draft.age;
+    }
+    if (draft.hasMic) {
+      selectMicOption(draft.hasMic);
     }
     if (draft.favGameName) {
       if (draft.favGameName === 'other') {
