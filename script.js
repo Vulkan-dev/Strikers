@@ -71,6 +71,11 @@ function formatClanMoniker(rawName) {
   return `${prefix}${smallCaps}${suffix}`;
 }
 
+// Storage Keys for persistent localStorage
+const APPLICANT_STORAGE_KEY = 'str_verified_applicant_data';
+const DRAFT_FORM_STORAGE_KEY = 'str_applicant_draft_form';
+const LOCK_STORAGE_KEY = 'str_moniker_lock_data';
+
 // Cached applicant state
 let verifiedApplicant = null;
 let currentFormattedName = '';
@@ -206,6 +211,7 @@ function renderFavGameList(filter = '') {
     favGameOtherInput.focus();
     updateFavGameDisplay('Other', GENERIC_GAME_ICON);
     favouriteGameInput.value = favGameOtherInput.value.trim() || 'Other';
+    saveDraftForm();
   });
   favGameList.appendChild(otherItem);
 }
@@ -217,6 +223,7 @@ function selectFavGame(name, logo) {
   favGameOtherContainer.classList.add('hidden');
   favGameDropdown.classList.add('hidden');
   favGameTrigger.classList.remove('active');
+  saveDraftForm();
 }
 
 function updateFavGameDisplay(name, logo) {
@@ -233,6 +240,7 @@ favGameOtherInput.addEventListener('input', () => {
   if (val) {
     updateFavGameDisplay(val, GENERIC_GAME_ICON);
   }
+  saveDraftForm();
 });
 
 favGameTrigger.addEventListener('click', (e) => {
@@ -301,12 +309,14 @@ function toggleGamePlayed(name, logo) {
     selectedGamesPlayed.push({ name, logo });
   }
   updateGamesPlayedChips();
+  saveDraftForm();
 }
 
 function removeGamePlayed(name) {
   selectedGamesPlayed = selectedGamesPlayed.filter(g => g.name !== name);
   updateGamesPlayedChips();
   renderGamesPlayedList(gamesPlayedSearch.value);
+  saveDraftForm();
 }
 
 function updateGamesPlayedChips() {
@@ -353,6 +363,7 @@ function addCustomGame() {
   if (!selectedGamesPlayed.some(g => g.name.toLowerCase() === val.toLowerCase())) {
     selectedGamesPlayed.push({ name: val, logo: GENERIC_GAME_ICON });
     updateGamesPlayedChips();
+    saveDraftForm();
   }
   gamesPlayedOtherInput.value = '';
 }
@@ -409,6 +420,10 @@ document.addEventListener('click', (e) => {
 // Stop clicks inside dropdowns from bubbling up
 favGameDropdown.addEventListener('click', (e) => e.stopPropagation());
 gamesPlayedDropdown.addEventListener('click', (e) => e.stopPropagation());
+
+// Real-time draft persistence
+discordUsernameInput.addEventListener('input', saveDraftForm);
+ageInput.addEventListener('input', saveDraftForm);
 
 // --------------------------------------------------------------------------
 // Step 1: Form Validation & Submission to Discord Webhook
@@ -502,13 +517,15 @@ verificationForm.addEventListener('submit', async (e) => {
     });
 
     if (response.ok || response.status === 204) {
-      // Cache verified applicant data
+      // Save verified applicant data into localStorage
       verifiedApplicant = {
         discordUsername: rawUsername,
         age: ageNum,
         favouriteGame,
         gamesPlayed
       };
+      localStorage.setItem(APPLICANT_STORAGE_KEY, JSON.stringify(verifiedApplicant));
+      localStorage.removeItem(DRAFT_FORM_STORAGE_KEY);
 
       // Transition smoothly to Step 2 (Unlock Name Maker)
       unlockNameMaker();
@@ -542,10 +559,56 @@ function setSubmittingState(isLoading) {
 // --------------------------------------------------------------------------
 // Step 2: Moniker Generator with 30-Day Anti-Abuse Lock
 // --------------------------------------------------------------------------
-const LOCK_STORAGE_KEY = 'str_moniker_lock_data';
 let pendingChosenRawName = '';
 let pendingFormattedName = '';
 let isMonikerLocked = false;
+
+function saveDraftForm() {
+  if (verifiedApplicant) return;
+  try {
+    const draft = {
+      discordUsername: discordUsernameInput ? discordUsernameInput.value : '',
+      age: ageInput ? ageInput.value : '',
+      favouriteGame: favouriteGameInput ? favouriteGameInput.value : '',
+      favGameName: selectedFavGame,
+      favGameOther: favGameOtherInput ? favGameOtherInput.value : '',
+      gamesPlayed: selectedGamesPlayed
+    };
+    localStorage.setItem(DRAFT_FORM_STORAGE_KEY, JSON.stringify(draft));
+  } catch {}
+}
+
+function restoreDraftForm() {
+  try {
+    const raw = localStorage.getItem(DRAFT_FORM_STORAGE_KEY);
+    if (!raw) return;
+    const draft = JSON.parse(raw);
+    if (draft.discordUsername && discordUsernameInput) {
+      discordUsernameInput.value = draft.discordUsername;
+    }
+    if (draft.age && ageInput) {
+      ageInput.value = draft.age;
+    }
+    if (draft.favGameName) {
+      if (draft.favGameName === 'other') {
+        selectedFavGame = 'other';
+        favGameOtherContainer.classList.remove('hidden');
+        favGameOtherInput.value = draft.favGameOther || '';
+        updateFavGameDisplay(draft.favGameOther || 'Other', GENERIC_GAME_ICON);
+        favouriteGameInput.value = draft.favGameOther || 'Other';
+      } else {
+        const g = (typeof POPULAR_GAMES !== 'undefined') ? POPULAR_GAMES.find(x => x.name === draft.favGameName) : null;
+        if (g) {
+          selectFavGame(g.name, g.logo);
+        }
+      }
+    }
+    if (draft.gamesPlayed && Array.isArray(draft.gamesPlayed) && draft.gamesPlayed.length > 0) {
+      selectedGamesPlayed = draft.gamesPlayed;
+      updateGamesPlayedChips();
+    }
+  } catch {}
+}
 
 function checkExistingLock() {
   const rawLock = localStorage.getItem(LOCK_STORAGE_KEY);
@@ -739,8 +802,24 @@ function showCopySuccess() {
   }, 2000);
 }
 
-// Prime dropdown lists on load
+// Prime dropdown lists on load and restore persistent state
 document.addEventListener('DOMContentLoaded', () => {
   renderFavGameList();
   renderGamesPlayedList();
+
+  // Check if applicant is already verified in localStorage
+  const savedApplicant = localStorage.getItem(APPLICANT_STORAGE_KEY);
+  if (savedApplicant) {
+    try {
+      const data = JSON.parse(savedApplicant);
+      if (data && data.discordUsername) {
+        verifiedApplicant = data;
+        unlockNameMaker();
+        return;
+      }
+    } catch {}
+  }
+
+  // Otherwise restore form draft
+  restoreDraftForm();
 });
