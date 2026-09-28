@@ -139,13 +139,38 @@ export default async function handler(req, res) {
 
       const createdChannel = await channelResp.json();
 
-      // 2. Post embed message into the new channel
+      // 2. Action buttons for Staff Review (Approve / Reject)
+      const applicantId = discordUserId || cleanHandle;
+      const components = [
+        {
+          type: 1, // Action Row
+          components: [
+            {
+              type: 2, // Button
+              style: 3, // Success (Green)
+              label: "Approve",
+              custom_id: `clan_approve_${applicantId}`,
+              emoji: { name: "✅" }
+            },
+            {
+              type: 2, // Button
+              style: 4, // Danger (Red)
+              label: "Reject",
+              custom_id: `clan_reject_${applicantId}`,
+              emoji: { name: "❌" }
+            }
+          ]
+        }
+      ];
+
+      // 3. Post embed message with buttons into the new channel
       const messageBody = {
         content: staffRoleId ? `<@&${staffRoleId}> New applicant channel ready for review.` : undefined,
-        embeds: [embedPayload]
+        embeds: [embedPayload],
+        components: components
       };
 
-      await fetch(`https://discord.com/api/v10/channels/${createdChannel.id}/messages`, {
+      const msgResp = await fetch(`https://discord.com/api/v10/channels/${createdChannel.id}/messages`, {
         method: 'POST',
         headers: {
           'Authorization': `Bot ${botToken}`,
@@ -154,6 +179,11 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify(messageBody)
       });
+
+      if (!msgResp.ok) {
+        const errJson = await msgResp.json().catch(() => ({}));
+        console.error('Failed to post message with review buttons:', msgResp.status, errJson);
+      }
 
       return res.status(200).json({
         success: true,
