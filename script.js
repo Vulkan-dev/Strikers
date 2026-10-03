@@ -568,7 +568,7 @@ async function verifyDiscordIdentity() {
   if (btnLoader) btnLoader.classList.remove('hidden');
 
   let profileData = null;
-  const botBase = (window.APP_CONFIG && window.APP_CONFIG.botApi) || 'http://localhost:3000';
+  const botBase = (window.APP_CONFIG && window.APP_CONFIG.botApi) || 'https://strikerss-production.up.railway.app';
 
   // 1. Try Vercel Serverless Function first (/api/discord-lookup)
   try {
@@ -776,11 +776,12 @@ verifyDiscordBtn.addEventListener('click', verifyDiscordIdentity);
 // Discord OAuth2 Authorization Flow (Anti-Abuse)
 // --------------------------------------------------------------------------
 async function initiateDiscordOAuth() {
-  const botBase = (window.APP_CONFIG && window.APP_CONFIG.botApi) || 'http://localhost:3000';
+  const botBase = (window.APP_CONFIG && window.APP_CONFIG.botApi) || 'https://strikerss-production.up.railway.app';
   let authUrl = null;
+  const currentReturnUrl = window.location.origin + window.location.pathname;
 
   try {
-    const res = await fetch(`${botBase}/api/clan/auth-url`);
+    const res = await fetch(`${botBase}/api/clan/auth-url?return_url=${encodeURIComponent(currentReturnUrl)}`);
     if (res.ok) {
       const data = await res.json();
       authUrl = data.authUrl;
@@ -792,11 +793,12 @@ async function initiateDiscordOAuth() {
   if (!authUrl) {
     const clientId = '1553647181326581770';
     const redirectUri = `${botBase}/api/auth/callback`;
-    authUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=identify&state=clan_portal`;
+    const safeB64 = btoa(currentReturnUrl).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    authUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=identify&state=clan_portal_ret_${safeB64}`;
   }
 
   // Save current window URL so the callback can return if direct redirect
-  localStorage.setItem('str_portal_return_url', window.location.href.split('?')[0]);
+  localStorage.setItem('str_portal_return_url', currentReturnUrl);
 
   // Open OAuth popup window
   const width = 500, height = 750;
