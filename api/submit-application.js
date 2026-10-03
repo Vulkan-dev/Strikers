@@ -198,11 +198,36 @@ export default async function handler(req, res) {
     }
   }
 
-  // Mode 2: Webhook Fallback
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
-  if (!webhookUrl) {
-    return res.status(500).json({ error: 'Server configuration error: DISCORD_WEBHOOK_URL environment variable is not set.' });
+  // Mode 2: Forward to Live Railway Bot API (where the bot and Discord client run)
+  const railwayBotUrl = process.env.RAILWAY_BOT_URL || 'https://strikerss-production.up.railway.app';
+  try {
+    const railwayResp = await fetch(`${railwayBotUrl}/api/clan/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        discordId: discordUserId,
+        username: discordUsername,
+        age: ageNum,
+        hasMic,
+        favouriteGame,
+        gamesPlayed,
+        clanMoniker,
+        avatarUrl,
+        accountAgeDays: calculatedDays,
+        accountAgeMonths: calculatedMonths,
+        authToken: req.body?.authToken || ''
+      })
+    });
+    if (railwayResp.ok) {
+      const data = await railwayResp.json();
+      return res.status(200).json(data);
+    }
+  } catch (railwayErr) {
+    console.warn('Railway forward failed:', railwayErr.message);
   }
+
+  // Mode 3: Webhook Fallback
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL || "https://discord.com/api/webhooks/1556030068856328192/s_DOqvcXHmRnjSQcR-VHBYbvbN4vg-l7SPMIezwGnyXVYy2WDLGNMqS7rlsM-52k1hyd";
 
   try {
     const hookResp = await fetch(webhookUrl, {

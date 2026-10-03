@@ -900,7 +900,7 @@ function openProfileConfirmationModal(formData) {
   if (!confirmProfileModal || !verifiedDiscordAccount) return;
   pendingApplicationData = formData;
 
-  // 1. Display Name & Username
+  // 1. Display Name & Username (Only authentic user profile data)
   if (dpopDisplayName) {
     dpopDisplayName.textContent = verifiedDiscordAccount.globalName || verifiedDiscordAccount.username;
   }
@@ -908,11 +908,11 @@ function openProfileConfirmationModal(formData) {
     dpopUsername.textContent = `@${verifiedDiscordAccount.username}`;
   }
   if (dpopTagline) {
-    const handleUpper = (verifiedDiscordAccount.username || 'USER').toUpperCase();
-    dpopTagline.textContent = `${handleUpper}.EXE — 🗖 ×`;
+    dpopTagline.textContent = '';
+    dpopTagline.classList.add('hidden');
   }
 
-  // 2. Avatar & Decoration
+  // 2. Avatar & Decoration (Only real Discord avatar decoration)
   if (dpopAvatar) {
     dpopAvatar.src = verifiedDiscordAccount.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png';
     dpopAvatar.onerror = function() {
@@ -925,6 +925,7 @@ function openProfileConfirmationModal(formData) {
       dpopCustomDecoration.src = verifiedDiscordAccount.decorationUrl;
       dpopCustomDecoration.classList.remove('hidden');
     } else {
+      dpopCustomDecoration.src = '';
       dpopCustomDecoration.classList.add('hidden');
     }
   }
@@ -935,32 +936,53 @@ function openProfileConfirmationModal(formData) {
       dpopBanner.style.backgroundImage = `url('${verifiedDiscordAccount.bannerUrl}')`;
       dpopBanner.style.backgroundColor = 'transparent';
     } else {
-      dpopBanner.style.backgroundImage = 'linear-gradient(135deg, #4f2e7b 0%, #2b1747 50%, #170d24 100%)';
-      dpopBanner.style.backgroundColor = verifiedDiscordAccount.accentColor || '#311b47';
+      dpopBanner.style.backgroundImage = 'none';
+      dpopBanner.style.backgroundColor = verifiedDiscordAccount.accentColor || '#1e1f22';
     }
   }
 
-  // 4. Status Bubble (Default matching screenshot if not available)
-  if (dpopStatusText) {
-    if (verifiedDiscordAccount.customStatus) {
-      dpopStatusText.textContent = verifiedDiscordAccount.customStatus;
+  // 4. Status Bubble (Only if user has an actual custom status)
+  if (dpopStatusBubble) {
+    if (verifiedDiscordAccount.customStatus && verifiedDiscordAccount.customStatus.trim()) {
+      if (dpopStatusText) dpopStatusText.textContent = verifiedDiscordAccount.customStatus;
+      dpopStatusBubble.classList.remove('hidden');
     } else {
-      dpopStatusText.textContent = 'Best thing you ate this week?';
+      dpopStatusBubble.classList.add('hidden');
     }
   }
 
-  // 5. Bio / About Me
-  if (dpopBioText) {
+  // 5. Bio / About Me (Only if user has an actual bio)
+  const dpopBioSection = document.getElementById('dpopBioSection') || document.querySelector('.dpop-bio-section');
+  if (dpopBioSection) {
     if (verifiedDiscordAccount.bio && verifiedDiscordAccount.bio.trim()) {
-      dpopBioText.textContent = verifiedDiscordAccount.bio;
+      if (dpopBioText) dpopBioText.textContent = verifiedDiscordAccount.bio;
+      dpopBioSection.classList.remove('hidden');
     } else {
-      dpopBioText.innerHTML = 'Plugin made by me: <a href="https://modrinth.com/plugin/clean-pingx" target="_blank" rel="noopener">https://modrinth.com/plugin/clean-pingx</a>';
+      dpopBioSection.classList.add('hidden');
     }
   }
 
-  // 6. Game Collection Favorite Game & Icon
+  // 6. Badges (Only real Discord badges)
+  const dpopBadgesBar = document.getElementById('dpopBadgesBar');
+  if (dpopBadgesBar) {
+    dpopBadgesBar.innerHTML = '';
+    if (verifiedDiscordAccount.badges && verifiedDiscordAccount.badges.length > 0) {
+      verifiedDiscordAccount.badges.forEach(b => {
+        const badgeElem = document.createElement('div');
+        badgeElem.className = 'dpop-badge-pill';
+        badgeElem.title = b.name;
+        badgeElem.innerHTML = `<span class="badge-icon">${b.icon || '🛡️'}</span><span class="badge-label">${b.name}</span>`;
+        dpopBadgesBar.appendChild(badgeElem);
+      });
+      dpopBadgesBar.classList.remove('hidden');
+    } else {
+      dpopBadgesBar.classList.add('hidden');
+    }
+  }
+
+  // 7. Game Collection Favorite Game & Icon
   if (dpopFavGameName) {
-    dpopFavGameName.textContent = formData.favouriteGame || 'Minecraft';
+    dpopFavGameName.textContent = formData.favouriteGame || 'Game';
   }
   if (dpopGameIcon) {
     const rawFav = (formData.favouriteGame || '').toLowerCase();
@@ -973,6 +995,8 @@ function openProfileConfirmationModal(formData) {
       dpopGameIcon.src = foundLogo;
     } else if (rawFav.includes('mine') || rawFav.includes('craft')) {
       dpopGameIcon.src = 'icons/minecraft.png';
+    } else if (rawFav.includes('rust')) {
+      dpopGameIcon.src = 'icons/rust.png';
     } else {
       dpopGameIcon.src = 'icons/minecraft.png';
     }
@@ -1117,100 +1141,127 @@ async function performApplicationSubmission(formData) {
   let submissionSuccess = false;
   let responseData = null;
 
-  // 1. Submit via Vercel Serverless Function (Creates category channel via Bot API or dispatches embed)
+  const botBase = (window.APP_CONFIG && window.APP_CONFIG.botApi) || 'https://strikerss-production.up.railway.app';
+  const token = discordAuthToken || localStorage.getItem('str_discord_auth_token') || '';
+  let lastErrorMessage = '';
+
+  // 1. Submit directly to Railway Discord Bot Backend (/api/clan/apply)
   try {
-    const apiResp = await fetch('/api/submit-application', {
+    const botResp = await fetch(`${botBase}/api/clan/apply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        discordUserId: verifiedDiscordAccount.id,
-        discordUsername: rawUsername,
+        discordId: verifiedDiscordAccount.id,
+        username: rawUsername,
         age: ageNum,
         hasMic,
         favouriteGame,
         gamesPlayed,
         avatarUrl: verifiedDiscordAccount.avatarUrl,
         accountAgeDays: verifiedDiscordAccount.accountAgeDays,
-        accountAgeMonths: verifiedDiscordAccount.accountAgeMonths
+        accountAgeMonths: verifiedDiscordAccount.accountAgeMonths,
+        authToken: token
       })
     });
 
-    if (apiResp.ok) {
-      responseData = await apiResp.json();
+    if (botResp.ok) {
+      responseData = await botResp.json();
       submissionSuccess = true;
     } else {
-      const errJson = await apiResp.json().catch(() => ({}));
-      console.warn('Serverless submit-application returned status:', apiResp.status, errJson);
+      const errJson = await botResp.json().catch(() => ({}));
+      lastErrorMessage = errJson.error || `Server returned ${botResp.status}`;
+      console.warn('Bot API /api/clan/apply status:', botResp.status, errJson);
     }
   } catch (apiErr) {
-    console.warn('Serverless endpoint not reachable, falling back to direct webhook:', apiErr);
+    console.warn('Direct Bot API unreachable, attempting serverless fallback:', apiErr);
+    lastErrorMessage = apiErr.message;
   }
 
-  // 2. Direct Webhook Fallback if serverless API wasn't reached (e.g. static local file preview)
+  // 2. Submit via Vercel Serverless Function Fallback
   if (!submissionSuccess) {
     try {
-      const webhookUrl = getActiveWebhook();
-      const embedDescription = [
-        "A new applicant is waiting for staff review.",
-        "",
-        "👤 **Applicant**",
-        `<@${verifiedDiscordAccount.id}> (\`@${rawUsername}\` / \`${verifiedDiscordAccount.id}\`)`,
-        "",
-        "🛡️ **Legitimacy Check**",
-        `✅ Verified Discord Account (${verifiedDiscordAccount.accountAgeDays} days / ~${verifiedDiscordAccount.accountAgeMonths} mo)`,
-        "",
-        "🎂 **Age**",
-        `\`${ageNum}\``,
-        "",
-        "🎙️ **Has Mic?**",
-        `\`${hasMic}\``,
-        "",
-        "🎮 **Favourite Game**",
-        `\`${favouriteGame}\``,
-        "",
-        "🕹️ **Games Played**",
-        `\`${gamesPlayed}\``,
-        "",
-        "> Staff approval is required before the member receives their STRIKERS role."
-      ].join("\n");
-
-      const embedPayload = {
-        username: "⚡ 𝑺𝑻𝑹𝑰𝑲𝑬𝑹𝑺",
-        avatar_url: verifiedDiscordAccount.avatarUrl,
-        embeds: [
-          {
-            author: {
-              name: `⚡ 𝑺𝑻𝑹𝑰𝑲𝑬𝑹𝑺 • ${verifiedDiscordAccount.globalName || rawUsername}`,
-              icon_url: verifiedDiscordAccount.avatarUrl
-            },
-            title: "𝑴𝑬𝑴𝑩𝑬𝑹 𝑽𝑬𝑹𝑰𝑭𝑰𝑪𝑨𝑻𝑰𝑶𝑵",
-            description: embedDescription,
-            color: 0x1f1f1f,
-            thumbnail: { url: verifiedDiscordAccount.avatarUrl },
-            footer: {
-              text: `STR Clan Review • Discord ID: ${verifiedDiscordAccount.id}`
-            },
-            timestamp: new Date().toISOString()
-          }
-        ]
-      };
-
-      const whResp = await fetch(webhookUrl, {
+      const apiResp = await fetch('/api/submit-application', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(embedPayload)
+        body: JSON.stringify({
+          discordUserId: verifiedDiscordAccount.id,
+          discordUsername: rawUsername,
+          age: ageNum,
+          hasMic,
+          favouriteGame,
+          gamesPlayed,
+          avatarUrl: verifiedDiscordAccount.avatarUrl,
+          accountAgeDays: verifiedDiscordAccount.accountAgeDays,
+          accountAgeMonths: verifiedDiscordAccount.accountAgeMonths,
+          authToken: token
+        })
       });
 
-      if (whResp.ok || whResp.status === 204) {
+      if (apiResp.ok) {
+        responseData = await apiResp.json();
         submissionSuccess = true;
       } else {
-        throw new Error('Both Bot channel creation and fallback webhook were unreachable.');
+        const errJson = await apiResp.json().catch(() => ({}));
+        if (!lastErrorMessage) lastErrorMessage = errJson.error;
       }
     } catch (whErr) {
-      setSubmittingState(false);
-      showAlert(statusAlert, `Submission failed: ${whErr.message}. Please check your connection or contact staff.`, 'error');
-      return;
+      console.warn('Serverless endpoint not reachable:', whErr);
     }
+  }
+
+  // 3. Webhook Fallback if configured
+  if (!submissionSuccess) {
+    const webhookUrl = getActiveWebhook();
+    if (webhookUrl) {
+      try {
+        const embedDescription = [
+          "A new applicant is waiting for staff review.",
+          "",
+          "👤 **Applicant**",
+          `<@${verifiedDiscordAccount.id}> (\`@${rawUsername}\` / \`${verifiedDiscordAccount.id}\`)`,
+          "",
+          "🛡️ **Legitimacy Check**",
+          `✅ Verified Discord Account (${verifiedDiscordAccount.accountAgeDays} days / ~${verifiedDiscordAccount.accountAgeMonths} mo)`,
+          "",
+          "🎂 **Age**",
+          `\`${ageNum}\``,
+          "",
+          "🎙️ **Has Mic?**",
+          `\`${hasMic}\``,
+          "",
+          "🎮 **Favourite Game**",
+          `\`${favouriteGame}\``,
+          "",
+          "🕹️ **Games Played**",
+          `\`${gamesPlayed}\``
+        ].join("\n");
+
+        const whResp = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: "⚡ 𝑺𝑻𝑹𝑰𝑲𝑬𝑹𝑺",
+            avatar_url: verifiedDiscordAccount.avatarUrl,
+            embeds: [{
+              title: "𝑴𝑬𝑴𝑩𝑬𝑹 𝑽𝑬𝑹𝑰𝑭𝑰𝑪𝑨𝑻𝑰𝑶𝑵",
+              description: embedDescription,
+              color: 0x1f1f1f,
+              timestamp: new Date().toISOString()
+            }]
+          })
+        });
+
+        if (whResp.ok || whResp.status === 204) {
+          submissionSuccess = true;
+        }
+      } catch (e) {}
+    }
+  }
+
+  if (!submissionSuccess && lastErrorMessage) {
+    setSubmittingState(false);
+    showAlert(statusAlert, `Submission Notice: ${lastErrorMessage}`, 'error');
+    return;
   }
 
   // Save verified applicant data into localStorage
@@ -1573,6 +1624,23 @@ function showCopySuccess() {
 
 // Prime dropdown lists on load and restore persistent state
 document.addEventListener('DOMContentLoaded', () => {
+  // Security honeypot ban enforcement check
+  if (localStorage.getItem('str_banned') === 'true') {
+    document.body.innerHTML = `
+      <div style="min-height:100vh;background:#0a0a0a;color:#f2f2f2;display:flex;align-items:center;justify-content:center;padding:2rem;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+        <div style="background:#121212;border:1px solid #ef4444;border-radius:14px;padding:3rem 2rem;max-width:480px;text-align:center;box-shadow:0 25px 60px rgba(239,68,68,0.25);">
+          <div style="font-size:3rem;margin-bottom:1rem;">⛔</div>
+          <h1 style="color:#ef4444;font-size:1.8rem;font-weight:800;margin-bottom:0.75rem;letter-spacing:-0.02em;">ACCESS PERMANENTLY BANNED</h1>
+          <p style="color:#9e9e9e;font-size:0.95rem;line-height:1.6;margin-bottom:1.5rem;">Your device and Discord credentials have been permanently banned from the STRIKERS clan network due to unauthorized administrative probe attempts.</p>
+          <div style="background:#181818;border:1px solid #282828;border-left:3px solid #ef4444;padding:0.85rem 1rem;border-radius:8px;color:#fca5a5;font-size:0.85rem;text-align:left;">
+            Intrusion logged and reported to clan administrators. Server access and roles have been revoked.
+          </div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
   renderFavGameList();
   renderGamesPlayedList();
 
