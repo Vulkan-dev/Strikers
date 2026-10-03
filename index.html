@@ -356,6 +356,163 @@
     </footer>
   </div>
 
+  <!-- Step 1 Discord Profile Confirmation Modal ("Is that you?") -->
+  <div id="confirmProfileModal" class="profile-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="confirmModalPrompt">
+    <div class="profile-modal-card">
+      
+      <!-- Top Prompt Header -->
+      <div class="profile-modal-header">
+        <div class="prompt-badge">DISCORD PROFILE CONFIRMATION</div>
+        <div class="prompt-title-row">
+          <h2 id="confirmModalPrompt" class="prompt-title">Is that you?</h2>
+          <button type="button" class="profile-modal-close" id="confirmProfileCloseBtn" aria-label="Close modal">&times;</button>
+        </div>
+        <p class="prompt-subtitle">Please verify this is your Discord account before unlocking the Name Maker.</p>
+      </div>
+
+      <!-- Discord Profile Popout Card (Pixel-perfect recreation of media_1791052411697.png) -->
+      <div class="discord-popout-card">
+        
+        <!-- Gothic Ornate Frame Borders & Skull -->
+        <div class="ornate-frame-decorations" aria-hidden="true">
+          <!-- Skull crest at top center -->
+          <div class="ornate-skull-crest">
+            <svg viewBox="0 0 100 48" class="ornate-skull-svg">
+              <!-- Central winged skull motif -->
+              <path d="M50 6 C43 6 37 12 37 20 C37 24 39 27 41 29 L41 34 C41 36 43 37 45 37 L55 37 C57 37 59 36 59 34 L59 29 C61 27 63 24 63 20 C63 12 57 6 50 6 Z" fill="#b993e8" stroke="#5b328a" stroke-width="1.8"/>
+              <ellipse cx="45" cy="19" rx="3" ry="3.5" fill="#1b1226"/>
+              <ellipse cx="55" cy="19" rx="3" ry="3.5" fill="#1b1226"/>
+              <!-- Side ornamental wings & leaves -->
+              <path d="M36 16 C25 9 11 14 3 22 C14 24 25 22 34 20" fill="none" stroke="#a777e3" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M64 16 C75 9 89 14 97 22 C86 24 75 22 66 20" fill="none" stroke="#a777e3" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M37 21 C27 21 17 26 11 34 C21 32 29 28 36 24" fill="none" stroke="#874ec2" stroke-width="2" stroke-linecap="round"/>
+              <path d="M63 21 C73 21 83 26 89 34 C79 32 71 28 64 24" fill="none" stroke="#874ec2" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <!-- Ornate Corner Flourishes -->
+          <div class="ornate-corner top-left"></div>
+          <div class="ornate-corner top-right"></div>
+          <div class="ornate-corner bottom-left"></div>
+          <div class="ornate-corner bottom-right"></div>
+        </div>
+
+        <!-- Banner Container -->
+        <div class="dpop-banner" id="dpopBanner"></div>
+
+        <!-- Popout Content Body -->
+        <div class="dpop-body">
+          
+          <!-- Avatar + Status Bubble Row -->
+          <div class="dpop-avatar-row">
+            <div class="dpop-avatar-wrapper">
+              <img id="dpopAvatar" class="dpop-avatar" src="https://cdn.discordapp.com/embed/avatars/0.png" alt="Discord Avatar" />
+              
+              <!-- Glowing Purple Dragon Avatar Decoration Overlay -->
+              <div class="dpop-dragon-decoration" id="dpopDragonDecor">
+                <svg viewBox="0 0 120 120" class="dragon-wreath-svg">
+                  <!-- Outer magical aura -->
+                  <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(192, 132, 252, 0.45)" stroke-width="2" stroke-dasharray="6 3"/>
+                  <!-- Dragon Head & Horns at top-left -->
+                  <path d="M22 34 C16 22 26 12 36 16 C44 19 42 30 32 34 C26 37 23 36 22 34 Z" fill="#9333ea" stroke="#e9d5ff" stroke-width="1.5"/>
+                  <!-- Piercing yellow eye -->
+                  <circle cx="28" cy="22" r="2.2" fill="#facc15"/>
+                  <!-- Flowing mystical dragon body around avatar -->
+                  <path d="M19 42 C11 54 13 72 20 84 C27 96 40 106 56 109 C46 102 44 92 48 82" fill="none" stroke="#c084fc" stroke-width="3.5" stroke-linecap="round"/>
+                  <path d="M17 50 C9 58 11 68 16 76" fill="none" stroke="#f472b6" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M23 80 C15 90 23 100 35 106" fill="none" stroke="#a855f7" stroke-width="2.5" stroke-linecap="round"/>
+                  <path d="M28 26 C19 20 25 10 35 12 C31 16 31 22 33 26" fill="#a855f7"/>
+                </svg>
+              </div>
+
+              <!-- Fallback/Custom Discord API Decoration (if provided by user's nitro) -->
+              <img id="dpopCustomDecoration" class="dpop-custom-decoration hidden" src="" alt="Decoration" />
+
+              <!-- Green Online Status Indicator Dot with dark border -->
+              <div class="dpop-status-dot online" title="Online"></div>
+            </div>
+
+            <!-- Floating Status Bubble -->
+            <div class="dpop-status-bubble" id="dpopStatusBubble">
+              <span class="status-bubble-icon">➕</span>
+              <span class="status-bubble-text" id="dpopStatusText">Best thing you ate this week?</span>
+            </div>
+          </div>
+
+          <!-- Display Name & Handle Tagline -->
+          <div class="dpop-names-section">
+            <h3 class="dpop-display-name" id="dpopDisplayName">-͟͟͞ 𝐒𝐓𝐑 乂【 𝐃𝐀𝐑𝐊 𝐖𝐀𝐕𝐄 】</h3>
+            <div class="dpop-username-row">
+              <span class="dpop-username" id="dpopUsername">darkwaveop</span>
+              <span class="dpop-separator">•</span>
+              <span class="dpop-tagline" id="dpopTagline">DARK.EXE — 🗖 ×</span>
+            </div>
+          </div>
+
+          <!-- Badges Bar -->
+          <div class="dpop-badges-bar" id="dpopBadgesBar">
+            <div class="dpop-badge-pill" title="Trophy Badge">
+              <span class="badge-icon">🏆</span>
+              <span class="badge-label">NOPE</span>
+            </div>
+            <div class="dpop-badge-icon hypesquad" title="HypeSquad">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#23a55a">
+                <circle cx="12" cy="12" r="10" fill="#23a55a"/>
+                <text x="12" y="16" font-size="13" font-weight="900" text-anchor="middle" fill="#111214">#</text>
+              </svg>
+            </div>
+            <div class="dpop-badge-icon partner" title="Verified / Partnered Server">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5865f2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9"/>
+                <path d="M12 7 v10 M8 9 l4 -2 l4 2 M8 15 l4 2 l4 -2"/>
+              </svg>
+            </div>
+            <div class="dpop-badge-icon nitro" title="Nitro Subscriber">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#f472b6">
+                <path d="M12 2 L15 9 L22 12 L15 15 L12 22 L9 15 L2 12 L9 9 Z"/>
+              </svg>
+            </div>
+          </div>
+
+          <div class="dpop-divider"></div>
+
+          <!-- About Me / Bio Section -->
+          <div class="dpop-bio-section">
+            <div class="dpop-bio-text" id="dpopBioText">
+              Plugin made by me: <a href="https://modrinth.com/plugin/clean-pingx" target="_blank" rel="noopener">https://modrinth.com/plugin/clean-pingx</a>
+            </div>
+            <button type="button" class="dpop-bio-link" id="dpopBioExpandBtn">View Full Bio</button>
+          </div>
+
+          <!-- Game Collection Box with Grass Block -->
+          <div class="dpop-activity-box">
+            <div class="dpop-activity-left">
+              <span class="dpop-activity-title">Game Collection</span>
+              <span class="dpop-activity-sub" id="dpopFavGameName">Minecraft</span>
+            </div>
+            <div class="dpop-activity-icon-wrap" id="dpopGameIconWrap">
+              <img id="dpopGameIcon" src="icons/minecraft.png" alt="Minecraft" class="dpop-game-icon" onerror="this.src='icons/minecraft.svg'" />
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Action Confirmation Buttons -->
+      <div class="profile-modal-actions">
+        <button type="button" id="confirmProfileNoBtn" class="btn-modal-secondary">
+          <span class="btn-icon">❌</span>
+          <span>No, change account</span>
+        </button>
+        <button type="button" id="confirmProfileYesBtn" class="btn-modal-primary">
+          <span class="btn-icon">✅</span>
+          <span class="btn-text">Yes, that's me!</span>
+          <span class="btn-loader-modal hidden"></span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
   <!-- Double Check Confirmation Modal (Root body child for proper viewport centering) -->
   <div id="confirmModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
     <div class="modal-card">

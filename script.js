@@ -873,6 +873,175 @@ discordUserIdInput.addEventListener('input', () => {
 // --------------------------------------------------------------------------
 // Step 1: Form Validation & Submission to Bot & Category Channel Creation
 // --------------------------------------------------------------------------
+// --------------------------------------------------------------------------
+// Step 1: Form Validation & Discord Profile Confirmation Modal ("Is that you?")
+// --------------------------------------------------------------------------
+let pendingApplicationData = null;
+
+// Modal Elements
+const confirmProfileModal = document.getElementById('confirmProfileModal');
+const confirmProfileYesBtn = document.getElementById('confirmProfileYesBtn');
+const confirmProfileNoBtn = document.getElementById('confirmProfileNoBtn');
+const confirmProfileCloseBtn = document.getElementById('confirmProfileCloseBtn');
+const dpopDisplayName = document.getElementById('dpopDisplayName');
+const dpopUsername = document.getElementById('dpopUsername');
+const dpopTagline = document.getElementById('dpopTagline');
+const dpopAvatar = document.getElementById('dpopAvatar');
+const dpopCustomDecoration = document.getElementById('dpopCustomDecoration');
+const dpopBanner = document.getElementById('dpopBanner');
+const dpopStatusBubble = document.getElementById('dpopStatusBubble');
+const dpopStatusText = document.getElementById('dpopStatusText');
+const dpopBioText = document.getElementById('dpopBioText');
+const dpopBioExpandBtn = document.getElementById('dpopBioExpandBtn');
+const dpopFavGameName = document.getElementById('dpopFavGameName');
+const dpopGameIcon = document.getElementById('dpopGameIcon');
+
+function openProfileConfirmationModal(formData) {
+  if (!confirmProfileModal || !verifiedDiscordAccount) return;
+  pendingApplicationData = formData;
+
+  // 1. Display Name & Username
+  if (dpopDisplayName) {
+    dpopDisplayName.textContent = verifiedDiscordAccount.globalName || verifiedDiscordAccount.username;
+  }
+  if (dpopUsername) {
+    dpopUsername.textContent = `@${verifiedDiscordAccount.username}`;
+  }
+  if (dpopTagline) {
+    const handleUpper = (verifiedDiscordAccount.username || 'USER').toUpperCase();
+    dpopTagline.textContent = `${handleUpper}.EXE — 🗖 ×`;
+  }
+
+  // 2. Avatar & Decoration
+  if (dpopAvatar) {
+    dpopAvatar.src = verifiedDiscordAccount.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png';
+    dpopAvatar.onerror = function() {
+      this.src = 'https://cdn.discordapp.com/embed/avatars/0.png';
+    };
+  }
+
+  if (dpopCustomDecoration) {
+    if (verifiedDiscordAccount.decorationUrl) {
+      dpopCustomDecoration.src = verifiedDiscordAccount.decorationUrl;
+      dpopCustomDecoration.classList.remove('hidden');
+    } else {
+      dpopCustomDecoration.classList.add('hidden');
+    }
+  }
+
+  // 3. Banner
+  if (dpopBanner) {
+    if (verifiedDiscordAccount.bannerUrl) {
+      dpopBanner.style.backgroundImage = `url('${verifiedDiscordAccount.bannerUrl}')`;
+      dpopBanner.style.backgroundColor = 'transparent';
+    } else {
+      dpopBanner.style.backgroundImage = 'linear-gradient(135deg, #4f2e7b 0%, #2b1747 50%, #170d24 100%)';
+      dpopBanner.style.backgroundColor = verifiedDiscordAccount.accentColor || '#311b47';
+    }
+  }
+
+  // 4. Status Bubble (Default matching screenshot if not available)
+  if (dpopStatusText) {
+    if (verifiedDiscordAccount.customStatus) {
+      dpopStatusText.textContent = verifiedDiscordAccount.customStatus;
+    } else {
+      dpopStatusText.textContent = 'Best thing you ate this week?';
+    }
+  }
+
+  // 5. Bio / About Me
+  if (dpopBioText) {
+    if (verifiedDiscordAccount.bio && verifiedDiscordAccount.bio.trim()) {
+      dpopBioText.textContent = verifiedDiscordAccount.bio;
+    } else {
+      dpopBioText.innerHTML = 'Plugin made by me: <a href="https://modrinth.com/plugin/clean-pingx" target="_blank" rel="noopener">https://modrinth.com/plugin/clean-pingx</a>';
+    }
+  }
+
+  // 6. Game Collection Favorite Game & Icon
+  if (dpopFavGameName) {
+    dpopFavGameName.textContent = formData.favouriteGame || 'Minecraft';
+  }
+  if (dpopGameIcon) {
+    const rawFav = (formData.favouriteGame || '').toLowerCase();
+    let foundLogo = null;
+    if (typeof POPULAR_GAMES !== 'undefined') {
+      const match = POPULAR_GAMES.find(g => g.name.toLowerCase() === rawFav || g.id === rawFav);
+      if (match && match.logo) foundLogo = match.logo;
+    }
+    if (foundLogo) {
+      dpopGameIcon.src = foundLogo;
+    } else if (rawFav.includes('mine') || rawFav.includes('craft')) {
+      dpopGameIcon.src = 'icons/minecraft.png';
+    } else {
+      dpopGameIcon.src = 'icons/minecraft.png';
+    }
+  }
+
+  // Open Modal
+  confirmProfileModal.classList.remove('hidden');
+}
+
+function closeProfileConfirmationModal() {
+  if (confirmProfileModal) {
+    confirmProfileModal.classList.add('hidden');
+  }
+}
+
+// Modal Listeners
+if (confirmProfileYesBtn) {
+  confirmProfileYesBtn.addEventListener('click', async () => {
+    if (!pendingApplicationData) return;
+    const btnLoader = confirmProfileYesBtn.querySelector('.btn-loader-modal');
+    if (btnLoader) btnLoader.classList.remove('hidden');
+    confirmProfileYesBtn.disabled = true;
+
+    try {
+      await performApplicationSubmission(pendingApplicationData);
+    } finally {
+      if (btnLoader) btnLoader.classList.add('hidden');
+      confirmProfileYesBtn.disabled = false;
+      closeProfileConfirmationModal();
+    }
+  });
+}
+
+if (confirmProfileNoBtn) {
+  confirmProfileNoBtn.addEventListener('click', () => {
+    closeProfileConfirmationModal();
+    if (discordUserIdInput) {
+      discordUserIdInput.readOnly = false;
+      discordUserIdInput.focus();
+      discordUserIdInput.select();
+    }
+  });
+}
+
+if (confirmProfileCloseBtn) {
+  confirmProfileCloseBtn.addEventListener('click', closeProfileConfirmationModal);
+}
+
+if (confirmProfileModal) {
+  confirmProfileModal.addEventListener('click', (e) => {
+    if (e.target === confirmProfileModal) {
+      closeProfileConfirmationModal();
+    }
+  });
+}
+
+if (dpopBioExpandBtn && dpopBioText) {
+  dpopBioExpandBtn.addEventListener('click', () => {
+    if (dpopBioText.style.maxHeight === 'none') {
+      dpopBioText.style.maxHeight = '60px';
+      dpopBioExpandBtn.textContent = 'View Full Bio';
+    } else {
+      dpopBioText.style.maxHeight = 'none';
+      dpopBioExpandBtn.textContent = 'Collapse Bio';
+    }
+  });
+}
+
+// Intercept Form Submit: Validate first, then popup "Is that you?" modal
 verificationForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   clearAlert(statusAlert);
@@ -929,6 +1098,20 @@ verificationForm.addEventListener('submit', async (e) => {
     return;
   }
 
+  // Inputs are valid: Pop up "Is that you?" Discord Profile Modal!
+  openProfileConfirmationModal({
+    rawId,
+    rawUsername,
+    ageNum,
+    hasMic,
+    favouriteGame,
+    gamesPlayed
+  });
+});
+
+// Final Application Submission (Executed when user clicks "Yes, that's me!" in modal)
+async function performApplicationSubmission(formData) {
+  const { rawId, rawUsername, ageNum, hasMic, favouriteGame, gamesPlayed } = formData;
   setSubmittingState(true);
 
   let submissionSuccess = false;
@@ -1050,7 +1233,7 @@ verificationForm.addEventListener('submit', async (e) => {
   if (responseData && responseData.mode === 'bot_channel') {
     showAlert(monikerAlert, `Channel ${responseData.channelName} created on Discord under category for staff review!`, 'success');
   }
-});
+}
 
 function setSubmittingState(isLoading) {
   const btnText = submitBtn.querySelector('.btn-text');
