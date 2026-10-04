@@ -84,7 +84,7 @@ export default async function handler(req, res) {
 
     const expiresAt = Number(expStr);
     if (Date.now() > expiresAt) {
-      return res.status(400).json({ error: 'Verification code has expired. Please request a new code.' });
+      return res.status(400).json({ error: 'Verification code has expired (1 minute limit). Please request a new code.' });
     }
 
     const computedHash = crypto.createHmac('sha256', AUTH_SECRET)

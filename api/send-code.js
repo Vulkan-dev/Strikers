@@ -186,7 +186,7 @@ export default async function handler(req, res) {
             "",
             `# \`\`\`${code}\`\`\``,
             "",
-            "⏱️ This code will expire in **10 minutes**.",
+            "⏱️ This code will expire in **1 minute (60 seconds)**.",
             "🔒 **Never share this code with anyone.** Clan staff will never ask for your login code."
           ].join("\n"),
           footer: { text: "STRIKERS Identity Guard" },
@@ -203,8 +203,8 @@ export default async function handler(req, res) {
       });
     }
 
-    // Step C: Generate signed HMAC verification challenge
-    const expiresAt = Date.now() + 10 * 60 * 1000;
+    // Step C: Generate signed HMAC verification challenge (1 minute expiration)
+    const expiresAt = Date.now() + 60 * 1000;
     const challengeHash = crypto.createHmac('sha256', AUTH_SECRET)
       .update(`${userId}:${code}:${expiresAt}`)
       .digest('hex');

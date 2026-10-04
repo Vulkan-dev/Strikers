@@ -234,6 +234,14 @@ export default async function handler(req, res) {
     }
     if (railwayResp.status === 409 || railwayResp.status === 429 || railwayResp.status === 403) {
       const errData = await railwayResp.json().catch(() => ({}));
+      if (railwayResp.status === 409 || errData.alreadySubmitted || (errData.error && errData.error.toLowerCase().includes('recently submitted'))) {
+        return res.status(200).json({
+          success: true,
+          alreadySubmitted: true,
+          message: 'Your application is already on file and under review. Proceeding to Name Maker!',
+          ...errData
+        });
+      }
       return res.status(railwayResp.status).json(errData);
     }
   } catch (railwayErr) {

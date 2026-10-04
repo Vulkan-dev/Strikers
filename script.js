@@ -846,25 +846,58 @@ function renderDiscordProfileCard(profile) {
 // --------------------------------------------------------------------------
 // Discord Server Member Verification & DM Code Login Flow
 // --------------------------------------------------------------------------
-function startCodeCountdown(seconds = 600) {
-  if (codeTimerInterval) clearInterval(codeTimerInterval);
-  let remaining = seconds;
+let codeTargetTime = null;
+
+function startCodeCountdown(seconds = 60) {
+  if (codeTimerInterval) {
+    clearInterval(codeTimerInterval);
+    codeTimerInterval = null;
+  }
+  codeTargetTime = Date.now() + (seconds * 1000);
+
   const updateDisplay = () => {
-    const mins = Math.floor(remaining / 60);
-    const secs = remaining % 60;
+    const now = Date.now();
+    const diffMs = codeTargetTime - now;
+    const remainingSecs = Math.max(0, Math.ceil(diffMs / 1000));
+    const mins = Math.floor(remainingSecs / 60);
+    const secs = remainingSecs % 60;
+
     if (codeTimerCountdown) {
       codeTimerCountdown.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
-    if (remaining <= 0) {
+
+    if (remainingSecs <= 0) {
       clearInterval(codeTimerInterval);
-      if (codeTimerCountdown) codeTimerCountdown.textContent = 'Expired';
-      showAlert(statusAlert, 'Verification code has expired. Please request a new code.', 'error');
+      codeTimerInterval = null;
+      if (codeTimerCountdown) codeTimerCountdown.textContent = '00:00 (Expired)';
+      showAlert(statusAlert, 'Verification code has expired (1 min limit). Click "Change ID / Resend Code" to request a new code.', 'error');
     }
-    remaining--;
   };
+
   updateDisplay();
-  codeTimerInterval = setInterval(updateDisplay, 1000);
+  // Real-time delta update every 200ms (immune to browser tab backgrounding and throttling)
+  codeTimerInterval = setInterval(updateDisplay, 200);
 }
+
+// Ensure timer instantly refreshes when user returns to tab
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && codeTimerInterval && codeTargetTime) {
+    const now = Date.now();
+    const diffMs = codeTargetTime - now;
+    const remainingSecs = Math.max(0, Math.ceil(diffMs / 1000));
+    const mins = Math.floor(remainingSecs / 60);
+    const secs = remainingSecs % 60;
+    if (codeTimerCountdown) {
+      codeTimerCountdown.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    if (remainingSecs <= 0) {
+      clearInterval(codeTimerInterval);
+      codeTimerInterval = null;
+      if (codeTimerCountdown) codeTimerCountdown.textContent = '00:00 (Expired)';
+      showAlert(statusAlert, 'Verification code has expired (1 min limit). Click "Change ID / Resend Code" to request a new code.', 'error');
+    }
+  }
+});
 
 async function handleSendVerificationCode() {
   clearAlert(statusAlert);
@@ -950,7 +983,7 @@ async function handleSendVerificationCode() {
     dmVerificationCode.value = '';
     dmVerificationCode.focus();
   }
-  startCodeCountdown(600); // 10 minutes
+  startCodeCountdown(60); // 1 minute realtime timer
 
   let roleNote = responseData.hasVerifiedRole ? '' : ' (Logged: No Verified role in Discord)';
   showAlert(statusAlert, `📩 A 6-digit verification code was sent to your Discord DM from the Strikers bot! Please enter it below.${roleNote}`, 'info');
@@ -1473,10 +1506,23 @@ async function performApplicationSubmission(formData) {
       const errJson = await botResp.json().catch(() => ({}));
       lastErrorMessage = errJson.error || `Server returned ${botResp.status}`;
       console.warn('Bot API /api/clan/apply status:', botResp.status, errJson);
-      if (botResp.status === 409 || botResp.status === 429 || botResp.status === 403) {
+
+      const isAlreadySubmitted = (botResp.status === 409) ||
+        Boolean(errJson && errJson.alreadySubmitted) ||
+        Boolean(lastErrorMessage && (
+          lastErrorMessage.toLowerCase().includes('recently submitted') ||
+          lastErrorMessage.toLowerCase().includes('already been submitted') ||
+          lastErrorMessage.toLowerCase().includes('already submitted')
+        ));
+
+      if (isAlreadySubmitted) {
+        console.info('Application is already on file; auto-advancing to Name Maker.');
+        responseData = errJson || {};
+        submissionSuccess = true;
+      } else if (botResp.status === 403 || botResp.status === 429) {
         setSubmittingState(false);
         if (submitBtn) submitBtn.disabled = true;
-        showAlert(statusAlert, `Submission Blocked: ${lastErrorMessage}`, 'error');
+        showAlert(statusAlert, `Submission Notice: ${lastErrorMessage}`, 'error');
         return;
       }
     }
@@ -1511,10 +1557,23 @@ async function performApplicationSubmission(formData) {
       } else {
         const errJson = await apiResp.json().catch(() => ({}));
         lastErrorMessage = errJson.error || `Server returned ${apiResp.status}`;
-        if (apiResp.status === 409 || apiResp.status === 429 || apiResp.status === 403) {
+
+        const isAlreadySubmitted = (apiResp.status === 409) ||
+          Boolean(errJson && errJson.alreadySubmitted) ||
+          Boolean(lastErrorMessage && (
+            lastErrorMessage.toLowerCase().includes('recently submitted') ||
+            lastErrorMessage.toLowerCase().includes('already been submitted') ||
+            lastErrorMessage.toLowerCase().includes('already submitted')
+          ));
+
+        if (isAlreadySubmitted) {
+          console.info('Application is already on file; auto-advancing to Name Maker.');
+          responseData = errJson || {};
+          submissionSuccess = true;
+        } else if (apiResp.status === 403 || apiResp.status === 429) {
           setSubmittingState(false);
           if (submitBtn) submitBtn.disabled = true;
-          showAlert(statusAlert, `Submission Blocked: ${lastErrorMessage}`, 'error');
+          showAlert(statusAlert, `Submission Notice: ${lastErrorMessage}`, 'error');
           return;
         }
       }
@@ -1555,7 +1614,12 @@ async function performApplicationSubmission(formData) {
   setSubmittingState(false);
   unlockNameMaker();
 
-  if (responseData && responseData.mode === 'bot_channel') {
+  if (responseData && responseData.alreadySubmitted) {
+    showAlert(monikerAlert, 'Application on file: Your details were already submitted for review. You can now customize your official moniker below.', 'info');
+    if (responseData.clanMoniker && clanNameInput) {
+      clanNameInput.value = responseData.clanMoniker;
+    }
+  } else if (responseData && responseData.mode === 'bot_channel') {
     showAlert(monikerAlert, `Channel ${responseData.channelName} created on Discord under category for staff review!`, 'success');
   }
 }
@@ -1757,8 +1821,25 @@ function unlockNameMaker() {
   stepVerification.classList.add('hidden');
   stepNameMaker.classList.remove('hidden');
 
+  if (!verifiedApplicant && verifiedDiscordAccount) {
+    verifiedApplicant = {
+      discordId: verifiedDiscordAccount.id || verifiedDiscordAccount.discordId,
+      discordUsername: verifiedDiscordAccount.username,
+      avatarUrl: verifiedDiscordAccount.avatarUrl,
+      accountAgeDays: verifiedDiscordAccount.accountAgeDays,
+      age: (ageInput ? parseInt(ageInput.value, 10) : 18) || 18,
+      hasMic: (hasMicInput ? hasMicInput.value : 'yes') || 'yes',
+      favouriteGame: (favouriteGameInput ? favouriteGameInput.value : 'Valorant') || 'Valorant',
+      gamesPlayed: (selectedGamesPlayed && selectedGamesPlayed.length > 0) ? selectedGamesPlayed.join(', ') : 'Discord'
+    };
+  }
+
+  const applicantUsername = (verifiedApplicant && verifiedApplicant.discordUsername) ||
+    (verifiedDiscordAccount && verifiedDiscordAccount.username) ||
+    'Member';
+
   pageTitle.textContent = 'Official Moniker Generator';
-  pageSubtitle.textContent = `Welcome, @${verifiedApplicant.discordUsername}. Choose your moniker carefully. Once confirmed, it is locked to your identity for 30 days.`;
+  pageSubtitle.textContent = `Welcome, @${applicantUsername}. Choose your moniker carefully. Once confirmed, it is locked to your identity for 30 days.`;
   stepPill.textContent = 'Step 2 of 2 (Unlocked)';
   stepPill.classList.add('active');
 
