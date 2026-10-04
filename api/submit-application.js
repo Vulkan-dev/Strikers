@@ -227,7 +227,10 @@ export default async function handler(req, res) {
   }
 
   // Mode 3: Webhook Fallback
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL || "https://discord.com/api/webhooks/1556030068856328192/s_DOqvcXHmRnjSQcR-VHBYbvbN4vg-l7SPMIezwGnyXVYy2WDLGNMqS7rlsM-52k1hyd";
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  if (!webhookUrl) {
+    return res.status(503).json({ error: 'Backend bot API is currently unreachable. Please try again shortly.' });
+  }
 
   try {
     const hookResp = await fetch(webhookUrl, {

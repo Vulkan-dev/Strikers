@@ -22,8 +22,7 @@ export default async function handler(req, res) {
   const { discordId, username, incidentId } = req.body || {};
   const incId = incidentId || ('SEC-' + Math.random().toString(36).substring(2, 9).toUpperCase());
 
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL ||
-    'https://discord.com/api/webhooks/1556030068856328192/s_DOqvcXHmRnjSQcR-VHBYbvbN4vg-l7SPMIezwGnyXVYy2WDLGNMqS7rlsM-52k1hyd';
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
 
   const botApiUrl = 'https://strikerss-production.up.railway.app/api/security/honeypot-ban';
 
@@ -88,15 +87,17 @@ export default async function handler(req, res) {
       timestamp: new Date().toISOString()
     };
 
-    await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content: "⚠️ **HONEYPOT ALERT**: Unauthorized access attempt on `/admin` detected!",
-        embeds: [embed]
-      }),
-      signal: AbortSignal.timeout(4000)
-    }).catch(err => console.error('[HONEYPOT WEBHOOK ERROR]', err));
+    if (webhookUrl) {
+      await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: "⚠️ **HONEYPOT ALERT**: Unauthorized access attempt on `/admin` detected!",
+          embeds: [embed]
+        }),
+        signal: AbortSignal.timeout(4000)
+      }).catch(err => console.error('[HONEYPOT WEBHOOK ERROR]', err));
+    }
   } catch (e) {}
 
   return res.status(403).json({

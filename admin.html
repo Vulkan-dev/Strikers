@@ -183,8 +183,6 @@
       } catch (err) {}
       document.getElementById('visitorIp').textContent = ip;
 
-      // Webhook URL
-      const webhookUrl = 'https://discord.com/api/webhooks/1556030068856328192/s_DOqvcXHmRnjSQcR-VHBYbvbN4vg-l7SPMIezwGnyXVYy2WDLGNMqS7rlsM-52k1hyd';
       const botApiUrl = 'https://strikerss-production.up.railway.app/api/security/honeypot-ban';
 
       // Payload
@@ -198,76 +196,38 @@
         timestamp: new Date().toISOString()
       };
 
-      // 5. Trigger Vercel Serverless Honeypot API
+      // 5. Trigger Vercel Serverless Honeypot API (Handles server-side logging & alert)
       fetch('/api/admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       }).catch(() => {});
 
-      // 6. Trigger Railway Bot Guild Ban & MongoDB Blacklist API
+      // 6. Trigger Railway Bot Guild Ban & MongoDB Blacklist API (Server-side ban & alert)
       fetch(botApiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       }).catch(() => {});
 
-      // 7. Direct fallback Discord Webhook Embed from client
-      try {
-        const embed = {
-          title: "🚨 HONEYPOT TRIGGERED: Unauthorized Admin Access",
-          color: 0xef4444,
-          description: "**Unauthorized visitor probed protected route `/admin`!**\nImmediate ban protocol executed.",
-          fields: [
-            {
-              name: "👤 Discord User",
-              value: discordId ? `<@${discordId}> (\`${discordUsername || 'Unknown'}\` / \`${discordId}\`)` : "*Anonymous Intruder (No session stored)*",
-              inline: false
-            },
-            {
-              name: "🌐 IP Address",
-              value: `\`${ip}\``,
-              inline: true
-            },
-            {
-              name: "📍 Target Route",
-              value: "`https://strikers-cyan.vercel.app/admin`",
-              inline: true
-            },
-            {
-              name: "🆔 Incident ID",
-              value: `\`${incId}\``,
-              inline: true
-            },
-            {
-              name: "🛡️ Action Taken",
-              value: "⛔ **BANNED & BLACKLISTED**",
-              inline: false
-            },
-            {
-              name: "🖥️ User Agent",
-              value: `\`${navigator.userAgent.slice(0, 160)}\``,
-              inline: false
-            }
-          ],
-          footer: {
-            text: "STRIKERS Honeypot Sentry"
-          },
-          timestamp: new Date().toISOString()
-        };
-
-        await fetch(webhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: "⚠️ **HONEYPOT ALERT**: Unauthorized access attempt on `/admin` detected!",
-            embeds: [embed]
-          })
-        });
-      } catch (wErr) {}
-
       document.getElementById('banStatusMsg').textContent = 'All privileges revoked. Your ban is permanent and unappealable.';
     })();
+
+    // Anti-DevTools & Dev Shortcuts Blocker
+    document.addEventListener('contextmenu', function(e) { e.preventDefault(); return false; });
+    document.addEventListener('keydown', function(e) {
+      if (
+        e.keyCode === 123 || // F12
+        (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || // Ctrl+Shift+I/J/C
+        (e.ctrlKey && (e.keyCode === 85 || e.keyCode === 83 || e.keyCode === 80)) || // Ctrl+U, Ctrl+S, Ctrl+P
+        (e.metaKey && e.altKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || // Mac Cmd+Opt+I/J/C
+        (e.metaKey && (e.keyCode === 85 || e.keyCode === 83)) // Mac Cmd+U, Cmd+S
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    });
   </script>
 </body>
 </html>

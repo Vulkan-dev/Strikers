@@ -3,12 +3,60 @@
 // Matte Minimal Professional Identity Engine
 // ==========================================================================
 
-function getActiveWebhook() {
-  if (window.APP_CONFIG && window.APP_CONFIG.webhookUrl) {
-    return window.APP_CONFIG.webhookUrl;
+// Cryptographic SHA-256 Hashing Utility (Prevents Plain Text Exposure & Tampering)
+async function hashSHA256(text) {
+  try {
+    if (window.crypto && window.crypto.subtle) {
+      const msgBuffer = new TextEncoder().encode(String(text || ''));
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+  } catch (err) {}
+  // Deterministic fallback hash
+  let hash = 5381;
+  const str = String(text || '');
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash) + str.charCodeAt(i);
+    hash |= 0;
   }
-  return '';
+  return 'sh_' + Math.abs(hash).toString(16);
 }
+
+// Client-Side Anti-Inspection & Dev Shortcuts Lock
+(function initClientProtection() {
+  // 1. Disable Right-Click (Context Menu)
+  window.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+    return false;
+  }, true);
+
+  // 2. Disable DevTools Shortcuts (F12, Ctrl+Shift+I/J/C, Ctrl+U, Ctrl+S)
+  window.addEventListener('keydown', function(e) {
+    if (
+      e.keyCode === 123 || e.key === 'F12' ||
+      (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67 || e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
+      (e.ctrlKey && (e.keyCode === 85 || e.keyCode === 83 || e.keyCode === 80 || e.key === 'u' || e.key === 's' || e.key === 'p')) ||
+      (e.metaKey && e.altKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67 || e.key === 'i' || e.key === 'j' || e.key === 'c')) ||
+      (e.metaKey && (e.keyCode === 85 || e.keyCode === 83 || e.key === 'u' || e.key === 's'))
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+  }, true);
+
+  // 3. Clear Console and Protect Against Leaks
+  try {
+    if (typeof console !== 'undefined') {
+      const origLog = console.log;
+      console.log = function() {};
+      console.info = function() {};
+      console.debug = function() {};
+      console.dir = function() {};
+    }
+  } catch (e) {}
+})();
 
 // Unicode Small Caps Character Mapping
 const SMALL_CAPS_MAP = {
@@ -1209,62 +1257,21 @@ async function performApplicationSubmission(formData) {
     }
   }
 
-  // 3. Webhook Fallback if configured
   if (!submissionSuccess) {
-    const webhookUrl = getActiveWebhook();
-    if (webhookUrl) {
-      try {
-        const embedDescription = [
-          "A new applicant is waiting for staff review.",
-          "",
-          "👤 **Applicant**",
-          `<@${verifiedDiscordAccount.id}> (\`@${rawUsername}\` / \`${verifiedDiscordAccount.id}\`)`,
-          "",
-          "🛡️ **Legitimacy Check**",
-          `✅ Verified Discord Account (${verifiedDiscordAccount.accountAgeDays} days / ~${verifiedDiscordAccount.accountAgeMonths} mo)`,
-          "",
-          "🎂 **Age**",
-          `\`${ageNum}\``,
-          "",
-          "🎙️ **Has Mic?**",
-          `\`${hasMic}\``,
-          "",
-          "🎮 **Favourite Game**",
-          `\`${favouriteGame}\``,
-          "",
-          "🕹️ **Games Played**",
-          `\`${gamesPlayed}\``
-        ].join("\n");
-
-        const whResp = await fetch(webhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: "⚡ 𝑺𝑻𝑹𝑰𝑲𝑬𝑹𝑺",
-            avatar_url: verifiedDiscordAccount.avatarUrl,
-            embeds: [{
-              title: "𝑴𝑬𝑴𝑩𝑬𝑹 𝑽𝑬𝑹𝑰𝑭𝑰𝑪𝑨𝑻𝑰𝑶𝑵",
-              description: embedDescription,
-              color: 0x1f1f1f,
-              timestamp: new Date().toISOString()
-            }]
-          })
-        });
-
-        if (whResp.ok || whResp.status === 204) {
-          submissionSuccess = true;
-        }
-      } catch (e) {}
-    }
-  }
-
-  if (!submissionSuccess && lastErrorMessage) {
     setSubmittingState(false);
-    showAlert(statusAlert, `Submission Notice: ${lastErrorMessage}`, 'error');
+    showAlert(statusAlert, `Submission Notice: ${lastErrorMessage || 'Service unavailable. Please verify the bot is online.'}`, 'error');
     return;
   }
 
-  // Save verified applicant data into localStorage
+  // Calculate cryptographic SHA-256 signature to protect sensitive applicant identity
+  const applicantSig = await hashSHA256(
+    (verifiedDiscordAccount.id || '') + ":" +
+    rawUsername + ":" +
+    (verifiedDiscordAccount.accountAgeDays || '0') + ":" +
+    "STR_STRIKERS_SEC_SALT_2026"
+  );
+
+  // Save verified applicant data with signature into localStorage
   verifiedApplicant = {
     discordId: verifiedDiscordAccount.id,
     discordUsername: rawUsername,
@@ -1273,7 +1280,8 @@ async function performApplicationSubmission(formData) {
     age: ageNum,
     hasMic,
     favouriteGame,
-    gamesPlayed
+    gamesPlayed,
+    _sig: applicantSig
   };
   localStorage.setItem(APPLICANT_STORAGE_KEY, JSON.stringify(verifiedApplicant));
   localStorage.removeItem(DRAFT_FORM_STORAGE_KEY);
@@ -1423,6 +1431,19 @@ function checkExistingLock() {
     const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
 
     if (now - lockData.timestamp < thirtyDaysMs) {
+      // Validate cryptographic signature if present
+      if (lockData._sig) {
+        hashSHA256(
+          lockData.username + ":" +
+          lockData.moniker + ":" +
+          "STR_LOCK_SALT_2026"
+        ).then(expSig => {
+          if (lockData._sig !== expSig) {
+            console.warn('[SECURITY] Tampered moniker lock detected. Resetting.');
+            localStorage.removeItem(LOCK_STORAGE_KEY);
+          }
+        });
+      }
       // Still locked
       const daysLeft = Math.ceil((thirtyDaysMs - (now - lockData.timestamp)) / (24 * 60 * 60 * 1000));
       applyLockState(lockData.moniker, daysLeft, lockData.style);
@@ -1514,7 +1535,7 @@ cancelConfirmBtn.addEventListener('click', () => {
   confirmModal.classList.add('hidden');
 });
 
-// Confirm Modal Proceed -> Lock and Transmit to Discord
+// Confirm Modal Proceed -> Lock and Transmit to Bot Server
 proceedConfirmBtn.addEventListener('click', async () => {
   const btnLoader = proceedConfirmBtn.querySelector('.btn-loader-sec');
   const btnSpan = proceedConfirmBtn.querySelector('span');
@@ -1523,54 +1544,72 @@ proceedConfirmBtn.addEventListener('click', async () => {
   btnSpan.textContent = 'Locking In...';
   btnLoader.classList.remove('hidden');
 
-  const webhookUrl = getActiveWebhook();
+  const botApi = (window.APP_CONFIG && window.APP_CONFIG.botApi) || 'https://strikerss-production.up.railway.app';
   const username = verifiedApplicant ? verifiedApplicant.discordUsername : "Applicant";
-
-  const monikerDescription = [
-    "Applicant has finalized and locked their official clan moniker.",
-    "",
-    "👤 **Username**",
-    `\`${username}\``,
-    "",
-    "🏷️ **Official Moniker**",
-    `\`${pendingFormattedName}\``,
-    "",
-    "🔒 **Status**",
-    "Locked for 30 days. Ready for manual STRIKERS role assignment."
-  ].join("\n");
-
-  const payload = {
-    username: "⚡ 𝑺𝑻𝑹𝑰𝑲𝑬𝑹𝑺",
-    embeds: [
-      {
-        author: {
-          name: "⚡ 𝑺𝑻𝑹𝑰𝑲𝑬𝑹𝑺"
-        },
-        title: "𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 𝑴𝑶𝑵𝑰𝑲𝑬𝑹 𝑳𝑶𝑮𝑮𝑬𝑫",
-        description: monikerDescription,
-        color: 0x1f1f1f,
-        footer: {
-          text: "STR Clan Review • Moniker Selection"
-        },
-        timestamp: new Date().toISOString()
-      }
-    ]
-  };
+  const discordId = verifiedApplicant ? verifiedApplicant.discordId : null;
 
   try {
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    let success = false;
+    let errorMsg = '';
 
-    if (response.ok || response.status === 204) {
-      // Save 30-day lock locally
+    // 1. Dispatch to Bot Backend Moniker Endpoint
+    try {
+      const resp = await fetch(`${botApi}/api/clan/moniker`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          discordId: discordId,
+          username: username,
+          moniker: pendingFormattedName,
+          style: currentStyle
+        })
+      });
+      if (resp.ok) {
+        success = true;
+      } else {
+        const errJson = await resp.json().catch(() => ({}));
+        errorMsg = errJson.error || `HTTP ${resp.status}`;
+      }
+    } catch (netErr) {
+      errorMsg = netErr.message;
+    }
+
+    // 2. Serverless fallback if bot endpoint is temporarily down
+    if (!success) {
+      try {
+        const svResp = await fetch('/api/submit-application', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'moniker',
+            discordUserId: discordId,
+            discordUsername: username,
+            clanMoniker: pendingFormattedName,
+            age: 18,
+            hasMic: 'Yes',
+            favouriteGame: 'STRIKERS Identity',
+            gamesPlayed: 'Official Moniker Selection'
+          })
+        });
+        if (svResp.ok) success = true;
+      } catch (svErr) {}
+    }
+
+    if (success) {
+      // Calculate cryptographic lock signature
+      const lockSig = await hashSHA256(
+        username + ":" +
+        pendingFormattedName + ":" +
+        "STR_LOCK_SALT_2026"
+      );
+
+      // Save 30-day lock locally with integrity signature
       const lockData = {
         username: username,
         moniker: pendingFormattedName,
         style: currentStyle,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        _sig: lockSig
       };
       localStorage.setItem(LOCK_STORAGE_KEY, JSON.stringify(lockData));
 
@@ -1581,7 +1620,7 @@ proceedConfirmBtn.addEventListener('click', async () => {
       applyLockState(pendingFormattedName, 30, currentStyle);
       showAlert(monikerAlert, `Moniker locked and registered successfully! You may now copy your official tag.`, 'success');
     } else {
-      throw new Error(`Discord returned HTTP ${response.status}`);
+      throw new Error(errorMsg || 'Server unreachable');
     }
   } catch (err) {
     showAlert(monikerAlert, `Could not register moniker: ${err.message}. Please try again.`, 'error');
@@ -1648,14 +1687,26 @@ document.addEventListener('DOMContentLoaded', () => {
   setMonikerStyle(currentStyle);
   updateStylePreviews();
 
-  // Check if applicant is already verified in localStorage
+  // Check if applicant is already verified in localStorage with SHA-256 integrity validation
   const savedApplicant = localStorage.getItem(APPLICANT_STORAGE_KEY);
   if (savedApplicant) {
     try {
       const data = JSON.parse(savedApplicant);
       if (data && data.discordUsername) {
-        verifiedApplicant = data;
-        unlockNameMaker();
+        hashSHA256(
+          (data.discordId || '') + ":" +
+          data.discordUsername + ":" +
+          (data.accountAgeDays || '0') + ":" +
+          "STR_STRIKERS_SEC_SALT_2026"
+        ).then(expectedSig => {
+          if (data._sig === expectedSig) {
+            verifiedApplicant = data;
+            unlockNameMaker();
+          } else {
+            console.warn('[SECURITY] Tampered applicant data detected. Session reset.');
+            localStorage.removeItem(APPLICANT_STORAGE_KEY);
+          }
+        });
         return;
       }
     } catch {}

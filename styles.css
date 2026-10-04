@@ -61,6 +61,13 @@ body {
   align-items: center;
   padding: 2.5rem 1rem;
   margin: 0 auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input, textarea, .formatted-output, code {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* Fluid Canvas Background */

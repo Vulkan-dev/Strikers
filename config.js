@@ -3,7 +3,6 @@
   window.APP_CONFIG = {
     // Strikers Discord Bot Backend API Endpoint (Railway Public URL or Localhost)
     botApi: window.RAILWAY_URL || localStorage.getItem('str_railway_api') || "https://strikerss-production.up.railway.app",
-    webhookUrl: "https://discord.com/api/webhooks/1556030068856328192/s_DOqvcXHmRnjSQcR-VHBYbvbN4vg-l7SPMIezwGnyXVYy2WDLGNMqS7rlsM-52k1hyd",
     // Legitimacy & Account Age Requirement
     requiredAccountAgeDays: 90, // Minimum 3 months
     clanPrefix: "-͟͟͞ 𝐒𝐓𝐑 乂【",

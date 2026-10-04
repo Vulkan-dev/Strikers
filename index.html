@@ -8,6 +8,57 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
+  <script>
+    // Immediate Anti-Inspect & Dev Shortcut Blocker
+    (function() {
+      // 1. Block Context Menu (Right Click)
+      document.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        return false;
+      }, true);
+
+      // 2. Block DevTools Keyboard Shortcuts
+      document.addEventListener('keydown', function(e) {
+        // F12
+        if (e.keyCode === 123 || e.key === 'F12') {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+        // Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C (Chrome/Edge/Firefox)
+        if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67 || e.key === 'I' || e.key === 'J' || e.key === 'C')) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+        // Ctrl+U (View Source), Ctrl+S (Save Page), Ctrl+P (Print Page)
+        if (e.ctrlKey && (e.keyCode === 85 || e.keyCode === 83 || e.keyCode === 80 || e.key === 'u' || e.key === 's' || e.key === 'p')) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+        // Mac: Cmd+Option+I, Cmd+Option+J, Cmd+Option+C
+        if (e.metaKey && e.altKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67 || e.key === 'i' || e.key === 'j' || e.key === 'c')) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+        // Mac: Cmd+U, Cmd+S
+        if (e.metaKey && (e.keyCode === 85 || e.keyCode === 83 || e.key === 'u' || e.key === 's')) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+      }, true);
+
+      // 3. Disable Dragging of Links & Images
+      document.addEventListener('dragstart', function(e) {
+        if (e.target.nodeName === 'IMG' || e.target.nodeName === 'A') {
+          e.preventDefault();
+        }
+      });
+    })();
+  </script>
 </head>
 <body>
   <!-- Animated Matte Fluid Background -->
