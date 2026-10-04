@@ -229,6 +229,23 @@ let discordAuthToken = localStorage.getItem('str_discord_auth_token') || null;
 let codeTimerInterval = null;
 let currentLoginTargetId = null;
 
+// Auth Mode State: 'register' (New Application) vs 'login' (Member Login)
+let currentAuthMode = 'register';
+let activeChallengeToken = '';
+
+// Auth Mode Switcher Elements
+const tabRegisterBtn = document.getElementById('tabRegisterBtn');
+const tabLoginBtn = document.getElementById('tabLoginBtn');
+const linkToLogin = document.getElementById('linkToLogin');
+const linkToRegister = document.getElementById('linkToRegister');
+const loginBoxTitle = document.getElementById('loginBoxTitle');
+const loginBoxDesc = document.getElementById('loginBoxDesc');
+const sendCodeBtnText = document.getElementById('sendCodeBtnText');
+const confirmCodeBtnText = document.getElementById('confirmCodeBtnText');
+const switchPromptToLogin = document.getElementById('switchPromptToLogin');
+const switchPromptToRegister = document.getElementById('switchPromptToRegister');
+const btnSignOutProfile = document.getElementById('btnSignOutProfile');
+
 // Verified Discord Account State
 let verifiedDiscordAccount = null;
 
@@ -854,15 +871,15 @@ async function handleSendVerificationCode() {
   const rawId = (discordUserIdInput.value || '').trim();
 
   if (!rawId) {
-    showAlert(statusAlert, 'Please enter your Discord User ID.', 'error');
+    showAlert(statusAlert, 'Please enter your Discord User ID or Username.', 'error');
     discordUserIdInput.focus();
     return;
   }
 
-  const btnText = sendCodeBtn ? sendCodeBtn.querySelector('.btn-text') : null;
+  const btnText = sendCodeBtn ? (sendCodeBtnText || sendCodeBtn.querySelector('.btn-text')) : null;
   const btnLoader = sendCodeBtn ? sendCodeBtn.querySelector('.btn-loader') : null;
   if (sendCodeBtn) sendCodeBtn.disabled = true;
-  if (btnText) btnText.textContent = 'Verifying Server...';
+  if (btnText) btnText.textContent = currentAuthMode === 'login' ? 'Sending Code...' : 'Verifying Server...';
   if (btnLoader) btnLoader.classList.remove('hidden');
 
   const botBase = (window.APP_CONFIG && window.APP_CONFIG.botApi) || 'https://strikerss-production.up.railway.app';
@@ -874,19 +891,26 @@ async function handleSendVerificationCode() {
     const vResp = await fetch('/api/send-code', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ discordId: rawId }),
-      signal: AbortSignal.timeout(6000)
+      body: JSON.stringify({ discordId: rawId, mode: currentAuthMode }),
+      signal: AbortSignal.timeout(8000)
     });
     responseData = await vResp.json().catch(() => ({}));
-    if (!vResp.ok) isError = true;
+    if (vResp.ok) {
+      isError = false;
+    } else {
+      if (vResp.status === 503 || vResp.status === 502 || vResp.status === 504) {
+        throw new Error('Vercel serverless returned ' + vResp.status);
+      }
+      isError = true;
+    }
   } catch (vErr) {
     // 2. Direct Bot API Fallback
     try {
       const bResp = await fetch(`${botBase}/api/clan/send-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ discordId: rawId }),
-        signal: AbortSignal.timeout(7000)
+        body: JSON.stringify({ discordId: rawId, mode: currentAuthMode }),
+        signal: AbortSignal.timeout(8000)
       });
       responseData = await bResp.json().catch(() => ({}));
       if (!bResp.ok) isError = true;
@@ -897,13 +921,17 @@ async function handleSendVerificationCode() {
   }
 
   if (sendCodeBtn) sendCodeBtn.disabled = false;
-  if (btnText) btnText.textContent = 'Verify & Send Code';
+  if (btnText) btnText.textContent = currentAuthMode === 'login' ? 'Send Login Code' : 'Verify & Send Code';
   if (btnLoader) btnLoader.classList.add('hidden');
 
   if (isError || !responseData || !responseData.success) {
     const errorMsg = (responseData && responseData.error) || 'Failed to send verification code.';
     if (responseData && responseData.alreadySubmitted) {
-      showAlert(statusAlert, `🚫 Application Already Submitted: An application for this account or IP is already under review. Duplicate submissions are strictly blocked.`, 'error');
+      showAlert(
+        statusAlert,
+        `🚫 Application Already Submitted: An application for this account or IP is already under review. Already applied? Click "Login" above to access your account.`,
+        'error'
+      );
       submitBtn.disabled = true;
     } else if (responseData && responseData.inServer === false) {
       showAlert(statusAlert, `❌ Server Membership Required: You are not in the STRIKERS Discord server. Please join our server first before verifying.`, 'error');
@@ -915,6 +943,7 @@ async function handleSendVerificationCode() {
 
   // Code was successfully sent to user's Discord DM!
   currentLoginTargetId = responseData.discordId;
+  activeChallengeToken = responseData.challengeToken || '';
   if (stepInputId) stepInputId.classList.add('hidden');
   if (stepInputCode) stepInputCode.classList.remove('hidden');
   if (dmVerificationCode) {
@@ -924,7 +953,7 @@ async function handleSendVerificationCode() {
   startCodeCountdown(600); // 10 minutes
 
   let roleNote = responseData.hasVerifiedRole ? '' : ' (Logged: No Verified role in Discord)';
-  showAlert(statusAlert, `📩 A 6-digit login verification code was sent to your Discord DM from the Strikers bot! Please enter it below.${roleNote}`, 'info');
+  showAlert(statusAlert, `📩 A 6-digit verification code was sent to your Discord DM from the Strikers bot! Please enter it below.${roleNote}`, 'info');
 }
 
 async function handleConfirmVerificationCode() {
@@ -937,7 +966,7 @@ async function handleConfirmVerificationCode() {
     return;
   }
 
-  const btnText = confirmCodeBtn ? confirmCodeBtn.querySelector('.btn-text') : null;
+  const btnText = confirmCodeBtn ? (confirmCodeBtnText || confirmCodeBtn.querySelector('.btn-text')) : null;
   const btnLoader = confirmCodeBtn ? confirmCodeBtn.querySelector('.btn-loader') : null;
   if (confirmCodeBtn) confirmCodeBtn.disabled = true;
   if (btnText) btnText.textContent = 'Confirming...';
@@ -952,19 +981,36 @@ async function handleConfirmVerificationCode() {
     const vResp = await fetch('/api/verify-code', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ discordId: currentLoginTargetId, code }),
-      signal: AbortSignal.timeout(6000)
+      body: JSON.stringify({
+        discordId: currentLoginTargetId,
+        code,
+        challengeToken: activeChallengeToken,
+        mode: currentAuthMode
+      }),
+      signal: AbortSignal.timeout(8000)
     });
     responseData = await vResp.json().catch(() => ({}));
-    if (!vResp.ok) isError = true;
+    if (vResp.ok) {
+      isError = false;
+    } else {
+      if (vResp.status === 503 || vResp.status === 502 || vResp.status === 504) {
+        throw new Error('Vercel serverless returned ' + vResp.status);
+      }
+      isError = true;
+    }
   } catch (vErr) {
     // 2. Direct Bot API Fallback
     try {
       const bResp = await fetch(`${botBase}/api/clan/verify-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ discordId: currentLoginTargetId, code }),
-        signal: AbortSignal.timeout(7000)
+        body: JSON.stringify({
+          discordId: currentLoginTargetId,
+          code,
+          challengeToken: activeChallengeToken,
+          mode: currentAuthMode
+        }),
+        signal: AbortSignal.timeout(8000)
       });
       responseData = await bResp.json().catch(() => ({}));
       if (!bResp.ok) isError = true;
@@ -975,7 +1021,7 @@ async function handleConfirmVerificationCode() {
   }
 
   if (confirmCodeBtn) confirmCodeBtn.disabled = false;
-  if (btnText) btnText.textContent = 'Confirm & Sign In';
+  if (btnText) btnText.textContent = currentAuthMode === 'login' ? 'Confirm & Log In' : 'Confirm & Sign In';
   if (btnLoader) btnLoader.classList.add('hidden');
 
   if (isError || !responseData || !responseData.success) {
@@ -998,7 +1044,14 @@ async function handleConfirmVerificationCode() {
   if (memberLoginBox) memberLoginBox.classList.add('hidden');
   renderDiscordProfileCard(profile);
 
-  // Enforce 3-month account age rule
+  // If in Login mode or user already has submitted application, unlock Name Maker directly
+  if (currentAuthMode === 'login' || responseData.hasExistingApplication) {
+    unlockNameMaker();
+    showAlert(statusAlert, `Welcome back, @${profile.username}! You are signed in to your STRIKERS account.`, 'success');
+    return;
+  }
+
+  // Enforce 3-month account age rule for new applicants
   const requiredDays = (window.APP_CONFIG && window.APP_CONFIG.requiredAccountAgeDays) || 90;
   if (!profile.isEligible) {
     const daysRemaining = requiredDays - profile.accountAgeDays;
@@ -1014,6 +1067,35 @@ async function handleConfirmVerificationCode() {
   }
 }
 
+function switchAuthMode(mode) {
+  currentAuthMode = mode;
+  clearAlert(statusAlert);
+
+  if (mode === 'login') {
+    if (tabLoginBtn) tabLoginBtn.classList.add('active');
+    if (tabRegisterBtn) tabRegisterBtn.classList.remove('active');
+    if (loginBoxTitle) loginBoxTitle.textContent = 'STRIKERS Member Login';
+    if (loginBoxDesc) loginBoxDesc.textContent = 'Enter your Discord User ID. The bot will send a 6-digit code to your Discord DM to authenticate your session.';
+    if (sendCodeBtnText) sendCodeBtnText.textContent = 'Send Login Code';
+    if (confirmCodeBtnText) confirmCodeBtnText.textContent = 'Confirm & Log In';
+    if (switchPromptToLogin) switchPromptToLogin.classList.add('hidden');
+    if (switchPromptToRegister) switchPromptToRegister.classList.remove('hidden');
+    if (pageTitle) pageTitle.textContent = 'Member Sign In';
+    if (pageSubtitle) pageSubtitle.textContent = 'Sign in with your verified Discord account to view application status or unlock your official clan moniker.';
+  } else {
+    if (tabRegisterBtn) tabRegisterBtn.classList.add('active');
+    if (tabLoginBtn) tabLoginBtn.classList.remove('active');
+    if (loginBoxTitle) loginBoxTitle.textContent = 'Discord Server Member Verification';
+    if (loginBoxDesc) loginBoxDesc.textContent = 'Enter your Discord User ID. Our bot will verify you are in the STRIKERS server and send a 6-digit verification code to your Discord DM to sign in.';
+    if (sendCodeBtnText) sendCodeBtnText.textContent = 'Verify & Send Code';
+    if (confirmCodeBtnText) confirmCodeBtnText.textContent = 'Confirm & Sign In';
+    if (switchPromptToRegister) switchPromptToRegister.classList.add('hidden');
+    if (switchPromptToLogin) switchPromptToLogin.classList.remove('hidden');
+    if (pageTitle) pageTitle.textContent = 'Member Verification';
+    if (pageSubtitle) pageSubtitle.textContent = 'Complete required verification details. Once submitted, clan leadership will review your profile for role eligibility and unlock the official moniker generator.';
+  }
+}
+
 function handleResendCode() {
   if (codeTimerInterval) clearInterval(codeTimerInterval);
   if (stepInputCode) stepInputCode.classList.add('hidden');
@@ -1021,6 +1103,40 @@ function handleResendCode() {
   if (dmVerificationCode) dmVerificationCode.value = '';
   clearAlert(statusAlert);
   if (discordUserIdInput) discordUserIdInput.focus();
+}
+
+// Event Listeners for Member Login & DM Verification
+if (tabRegisterBtn) tabRegisterBtn.addEventListener('click', () => switchAuthMode('register'));
+if (tabLoginBtn) tabLoginBtn.addEventListener('click', () => switchAuthMode('login'));
+if (linkToLogin) linkToLogin.addEventListener('click', () => switchAuthMode('login'));
+if (linkToRegister) linkToRegister.addEventListener('click', () => switchAuthMode('register'));
+
+if (btnSignOutProfile) {
+  btnSignOutProfile.addEventListener('click', () => {
+    localStorage.removeItem('str_discord_auth_token');
+    localStorage.removeItem(APPLICANT_STORAGE_KEY);
+    discordAuthToken = null;
+    verifiedDiscordAccount = null;
+    verifiedApplicant = null;
+    activeChallengeToken = '';
+    currentLoginTargetId = null;
+
+    if (discordAuthTokenInput) discordAuthTokenInput.value = '';
+    if (discordUserIdInput) {
+      discordUserIdInput.value = '';
+      discordUserIdInput.readOnly = false;
+    }
+    if (discordUsernameInput) discordUsernameInput.value = '';
+    if (dmVerificationCode) dmVerificationCode.value = '';
+
+    if (discordProfileCard) discordProfileCard.classList.add('hidden');
+    if (memberLoginBox) memberLoginBox.classList.remove('hidden');
+    if (stepInputCode) stepInputCode.classList.add('hidden');
+    if (stepInputId) stepInputId.classList.remove('hidden');
+
+    submitBtn.disabled = true;
+    showAlert(statusAlert, 'Signed out of Discord account successfully.', 'info');
+  });
 }
 
 // Event Listeners for Member Login & DM Verification
