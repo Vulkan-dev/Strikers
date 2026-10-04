@@ -198,12 +198,22 @@ export default async function handler(req, res) {
     }
   }
 
+  const rawForwarded = req.headers['x-forwarded-for'];
+  const clientIp = (rawForwarded ? String(rawForwarded).split(',')[0].trim() : null) ||
+    req.headers['x-real-ip'] ||
+    req.socket?.remoteAddress ||
+    'Unknown IP';
+  const cleanIp = String(clientIp).replace(/^::ffff:/, '').trim();
+
   // Mode 2: Forward to Live Railway Bot API (where the bot and Discord client run)
   const railwayBotUrl = process.env.RAILWAY_BOT_URL || 'https://strikerss-production.up.railway.app';
   try {
     const railwayResp = await fetch(`${railwayBotUrl}/api/clan/apply`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-forwarded-for': cleanIp
+      },
       body: JSON.stringify({
         discordId: discordUserId,
         username: discordUsername,
@@ -221,6 +231,10 @@ export default async function handler(req, res) {
     if (railwayResp.ok) {
       const data = await railwayResp.json();
       return res.status(200).json(data);
+    }
+    if (railwayResp.status === 409 || railwayResp.status === 429 || railwayResp.status === 403) {
+      const errData = await railwayResp.json().catch(() => ({}));
+      return res.status(railwayResp.status).json(errData);
     }
   } catch (railwayErr) {
     console.warn('Railway forward failed:', railwayErr.message);

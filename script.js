@@ -215,10 +215,19 @@ const gamesPlayedInput = document.getElementById('gamesPlayed');
 const submitBtn = document.getElementById('submitBtn');
 const statusAlert = document.getElementById('statusAlert');
 
-// OAuth Anti-Abuse Elements
-const discordOAuthBtn = document.getElementById('discordOAuthBtn');
+// Member Login & DM Verification Elements
+const memberLoginBox = document.getElementById('memberLoginBox');
+const stepInputId = document.getElementById('stepInputId');
+const stepInputCode = document.getElementById('stepInputCode');
+const sendCodeBtn = document.getElementById('sendCodeBtn') || document.getElementById('verifyDiscordBtn');
+const dmVerificationCode = document.getElementById('dmVerificationCode');
+const confirmCodeBtn = document.getElementById('confirmCodeBtn');
+const resendCodeBtn = document.getElementById('resendCodeBtn');
+const codeTimerCountdown = document.getElementById('codeTimerCountdown');
 const discordAuthTokenInput = document.getElementById('discordAuthToken');
 let discordAuthToken = localStorage.getItem('str_discord_auth_token') || null;
+let codeTimerInterval = null;
+let currentLoginTargetId = null;
 
 // Verified Discord Account State
 let verifiedDiscordAccount = null;
@@ -817,104 +826,233 @@ function renderDiscordProfileCard(profile) {
   }
 }
 
-// Event Listeners for Discord Verification
-verifyDiscordBtn.addEventListener('click', verifyDiscordIdentity);
-
 // --------------------------------------------------------------------------
-// Discord OAuth2 Authorization Flow (Anti-Abuse)
+// Discord Server Member Verification & DM Code Login Flow
 // --------------------------------------------------------------------------
-async function initiateDiscordOAuth() {
-  const botBase = (window.APP_CONFIG && window.APP_CONFIG.botApi) || 'https://strikerss-production.up.railway.app';
-  let authUrl = null;
-  const currentReturnUrl = window.location.origin + window.location.pathname;
-
-  try {
-    const res = await fetch(`${botBase}/api/clan/auth-url?return_url=${encodeURIComponent(currentReturnUrl)}`);
-    if (res.ok) {
-      const data = await res.json();
-      authUrl = data.authUrl;
+function startCodeCountdown(seconds = 600) {
+  if (codeTimerInterval) clearInterval(codeTimerInterval);
+  let remaining = seconds;
+  const updateDisplay = () => {
+    const mins = Math.floor(remaining / 60);
+    const secs = remaining % 60;
+    if (codeTimerCountdown) {
+      codeTimerCountdown.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
-  } catch (e) {
-    console.warn('Failed to fetch auth-url dynamically, fallback to default:', e);
+    if (remaining <= 0) {
+      clearInterval(codeTimerInterval);
+      if (codeTimerCountdown) codeTimerCountdown.textContent = 'Expired';
+      showAlert(statusAlert, 'Verification code has expired. Please request a new code.', 'error');
+    }
+    remaining--;
+  };
+  updateDisplay();
+  codeTimerInterval = setInterval(updateDisplay, 1000);
+}
+
+async function handleSendVerificationCode() {
+  clearAlert(statusAlert);
+  const rawId = (discordUserIdInput.value || '').trim();
+
+  if (!rawId) {
+    showAlert(statusAlert, 'Please enter your Discord User ID.', 'error');
+    discordUserIdInput.focus();
+    return;
   }
 
-  if (!authUrl) {
-    const clientId = '1553647181326581770';
-    const redirectUri = `${botBase}/api/auth/callback`;
-    const safeB64 = btoa(currentReturnUrl).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    authUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=identify&state=clan_portal_ret_${safeB64}`;
+  const btnText = sendCodeBtn ? sendCodeBtn.querySelector('.btn-text') : null;
+  const btnLoader = sendCodeBtn ? sendCodeBtn.querySelector('.btn-loader') : null;
+  if (sendCodeBtn) sendCodeBtn.disabled = true;
+  if (btnText) btnText.textContent = 'Verifying Server...';
+  if (btnLoader) btnLoader.classList.remove('hidden');
+
+  const botBase = (window.APP_CONFIG && window.APP_CONFIG.botApi) || 'https://strikerss-production.up.railway.app';
+  let responseData = null;
+  let isError = false;
+
+  // 1. Try Vercel Serverless Function first (/api/send-code)
+  try {
+    const vResp = await fetch('/api/send-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ discordId: rawId }),
+      signal: AbortSignal.timeout(6000)
+    });
+    responseData = await vResp.json().catch(() => ({}));
+    if (!vResp.ok) isError = true;
+  } catch (vErr) {
+    // 2. Direct Bot API Fallback
+    try {
+      const bResp = await fetch(`${botBase}/api/clan/send-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ discordId: rawId }),
+        signal: AbortSignal.timeout(7000)
+      });
+      responseData = await bResp.json().catch(() => ({}));
+      if (!bResp.ok) isError = true;
+    } catch (bErr) {
+      isError = true;
+      responseData = { error: 'Unable to connect to authentication server. Please try again shortly.' };
+    }
   }
 
-  // Save current window URL so the callback can return if direct redirect
-  localStorage.setItem('str_portal_return_url', currentReturnUrl);
+  if (sendCodeBtn) sendCodeBtn.disabled = false;
+  if (btnText) btnText.textContent = 'Verify & Send Code';
+  if (btnLoader) btnLoader.classList.add('hidden');
 
-  // Open OAuth popup window
-  const width = 500, height = 750;
-  const left = window.screenX + (window.outerWidth - width) / 2;
-  const top = window.screenY + (window.outerHeight - height) / 2;
-  const popup = window.open(authUrl, 'discord_oauth', `width=${width},height=${height},left=${left},top=${top}`);
+  if (isError || !responseData || !responseData.success) {
+    const errorMsg = (responseData && responseData.error) || 'Failed to send verification code.';
+    if (responseData && responseData.alreadySubmitted) {
+      showAlert(statusAlert, `🚫 Application Already Submitted: An application for this account or IP is already under review. Duplicate submissions are strictly blocked.`, 'error');
+      submitBtn.disabled = true;
+    } else if (responseData && responseData.inServer === false) {
+      showAlert(statusAlert, `❌ Server Membership Required: You are not in the STRIKERS Discord server. Please join our server first before verifying.`, 'error');
+    } else {
+      showAlert(statusAlert, errorMsg, 'error');
+    }
+    return;
+  }
 
-  if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-    // Popup blocked, fallback to normal navigation
-    window.location.href = authUrl;
+  // Code was successfully sent to user's Discord DM!
+  currentLoginTargetId = responseData.discordId;
+  if (stepInputId) stepInputId.classList.add('hidden');
+  if (stepInputCode) stepInputCode.classList.remove('hidden');
+  if (dmVerificationCode) {
+    dmVerificationCode.value = '';
+    dmVerificationCode.focus();
+  }
+  startCodeCountdown(600); // 10 minutes
+
+  let roleNote = responseData.hasVerifiedRole ? '' : ' (Logged: No Verified role in Discord)';
+  showAlert(statusAlert, `📩 A 6-digit login verification code was sent to your Discord DM from the Strikers bot! Please enter it below.${roleNote}`, 'info');
+}
+
+async function handleConfirmVerificationCode() {
+  clearAlert(statusAlert);
+  const code = (dmVerificationCode ? dmVerificationCode.value : '').trim();
+
+  if (!code || code.length !== 6) {
+    showAlert(statusAlert, 'Please enter the 6-digit verification code from your Discord DM.', 'error');
+    if (dmVerificationCode) dmVerificationCode.focus();
+    return;
+  }
+
+  const btnText = confirmCodeBtn ? confirmCodeBtn.querySelector('.btn-text') : null;
+  const btnLoader = confirmCodeBtn ? confirmCodeBtn.querySelector('.btn-loader') : null;
+  if (confirmCodeBtn) confirmCodeBtn.disabled = true;
+  if (btnText) btnText.textContent = 'Confirming...';
+  if (btnLoader) btnLoader.classList.remove('hidden');
+
+  const botBase = (window.APP_CONFIG && window.APP_CONFIG.botApi) || 'https://strikerss-production.up.railway.app';
+  let responseData = null;
+  let isError = false;
+
+  // 1. Try Vercel Serverless Function first (/api/verify-code)
+  try {
+    const vResp = await fetch('/api/verify-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ discordId: currentLoginTargetId, code }),
+      signal: AbortSignal.timeout(6000)
+    });
+    responseData = await vResp.json().catch(() => ({}));
+    if (!vResp.ok) isError = true;
+  } catch (vErr) {
+    // 2. Direct Bot API Fallback
+    try {
+      const bResp = await fetch(`${botBase}/api/clan/verify-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ discordId: currentLoginTargetId, code }),
+        signal: AbortSignal.timeout(7000)
+      });
+      responseData = await bResp.json().catch(() => ({}));
+      if (!bResp.ok) isError = true;
+    } catch (bErr) {
+      isError = true;
+      responseData = { error: 'Failed to verify code with server. Please try again.' };
+    }
+  }
+
+  if (confirmCodeBtn) confirmCodeBtn.disabled = false;
+  if (btnText) btnText.textContent = 'Confirm & Sign In';
+  if (btnLoader) btnLoader.classList.add('hidden');
+
+  if (isError || !responseData || !responseData.success) {
+    showAlert(statusAlert, (responseData && responseData.error) || 'Invalid or expired verification code.', 'error');
+    return;
+  }
+
+  // Verification succeeded!
+  if (codeTimerInterval) clearInterval(codeTimerInterval);
+
+  const profile = responseData.userProfile;
+  verifiedDiscordAccount = profile;
+  discordAuthToken = responseData.authToken;
+  localStorage.setItem('str_discord_auth_token', discordAuthToken);
+  if (discordAuthTokenInput) discordAuthTokenInput.value = discordAuthToken;
+  if (discordUsernameInput) discordUsernameInput.value = profile.username;
+  if (discordUserIdInput) discordUserIdInput.value = profile.discordId;
+
+  // Hide member login card and show verified profile card
+  if (memberLoginBox) memberLoginBox.classList.add('hidden');
+  renderDiscordProfileCard(profile);
+
+  // Enforce 3-month account age rule
+  const requiredDays = (window.APP_CONFIG && window.APP_CONFIG.requiredAccountAgeDays) || 90;
+  if (!profile.isEligible) {
+    const daysRemaining = requiredDays - profile.accountAgeDays;
+    showAlert(
+      statusAlert,
+      `🚫 Application Ineligible: Your Discord account is only ${profile.accountAgeDays} days old (~${profile.accountAgeMonths} months). Accounts must be at least 3 months old (90 days) to prevent alt accounts. (Requires ${daysRemaining} more days).`,
+      'error'
+    );
+    submitBtn.disabled = true;
+  } else {
+    clearAlert(statusAlert);
+    submitBtn.disabled = false;
   }
 }
 
-if (discordOAuthBtn) {
-  discordOAuthBtn.addEventListener('click', initiateDiscordOAuth);
+function handleResendCode() {
+  if (codeTimerInterval) clearInterval(codeTimerInterval);
+  if (stepInputCode) stepInputCode.classList.add('hidden');
+  if (stepInputId) stepInputId.classList.remove('hidden');
+  if (dmVerificationCode) dmVerificationCode.value = '';
+  clearAlert(statusAlert);
+  if (discordUserIdInput) discordUserIdInput.focus();
 }
 
-// Listen for OAuth message from authorization popup window
-window.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'STR_DISCORD_AUTH_SUCCESS') {
-    handleOAuthSuccess(event.data.data);
-  }
-});
-
-function handleOAuthSuccess(authData) {
-  if (!authData || !authData.userId) return;
-  discordAuthToken = authData.token;
-  localStorage.setItem('str_discord_auth_token', authData.token);
-  if (discordAuthTokenInput) discordAuthTokenInput.value = authData.token;
-
-  // Auto-fill and lock Discord User ID input
-  discordUserIdInput.value = authData.userId;
-  discordUserIdInput.readOnly = true;
-
-  if (discordOAuthBtn) {
-    discordOAuthBtn.classList.add('authorized');
-    discordOAuthBtn.innerHTML = `<span>✓ Authorized (@${authData.username})</span>`;
-    discordOAuthBtn.disabled = true;
-  }
-
-  // Automatically trigger Discord identity verification and profile card render
-  verifyDiscordIdentity();
+// Event Listeners for Member Login & DM Verification
+if (sendCodeBtn) {
+  sendCodeBtn.addEventListener('click', handleSendVerificationCode);
 }
-
-// Check URL params for direct OAuth redirect fallback (?auth_token=...&user_id=...)
-(function checkUrlOAuth() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const token = urlParams.get('auth_token');
-  const userId = urlParams.get('user_id');
-  if (token && userId) {
-    handleOAuthSuccess({ token, userId, username: 'Verified User' });
-    // Clean URL query parameters
-    window.history.replaceState({}, document.title, window.location.pathname);
-  }
-})();
+if (confirmCodeBtn) {
+  confirmCodeBtn.addEventListener('click', handleConfirmVerificationCode);
+}
+if (resendCodeBtn) {
+  resendCodeBtn.addEventListener('click', handleResendCode);
+}
+if (dmVerificationCode) {
+  dmVerificationCode.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleConfirmVerificationCode();
+    }
+  });
+  dmVerificationCode.addEventListener('input', () => {
+    const cleanDigits = dmVerificationCode.value.replace(/[^0-9]/g, '');
+    dmVerificationCode.value = cleanDigits;
+    if (cleanDigits.length === 6) {
+      handleConfirmVerificationCode();
+    }
+  });
+}
 
 discordUserIdInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
-    verifyDiscordIdentity();
-  }
-});
-
-// Auto-trigger verification on pasting valid 17-20 digit snowflake
-discordUserIdInput.addEventListener('input', () => {
-  const val = discordUserIdInput.value.trim();
-  if (/^\d{17,20}$/.test(val)) {
-    verifyDiscordIdentity();
+    handleSendVerificationCode();
   }
 });
 
@@ -1219,6 +1357,12 @@ async function performApplicationSubmission(formData) {
       const errJson = await botResp.json().catch(() => ({}));
       lastErrorMessage = errJson.error || `Server returned ${botResp.status}`;
       console.warn('Bot API /api/clan/apply status:', botResp.status, errJson);
+      if (botResp.status === 409 || botResp.status === 429 || botResp.status === 403) {
+        setSubmittingState(false);
+        if (submitBtn) submitBtn.disabled = true;
+        showAlert(statusAlert, `Submission Blocked: ${lastErrorMessage}`, 'error');
+        return;
+      }
     }
   } catch (apiErr) {
     console.warn('Direct Bot API unreachable, attempting serverless fallback:', apiErr);
@@ -1250,7 +1394,13 @@ async function performApplicationSubmission(formData) {
         submissionSuccess = true;
       } else {
         const errJson = await apiResp.json().catch(() => ({}));
-        if (!lastErrorMessage) lastErrorMessage = errJson.error;
+        lastErrorMessage = errJson.error || `Server returned ${apiResp.status}`;
+        if (apiResp.status === 409 || apiResp.status === 429 || apiResp.status === 403) {
+          setSubmittingState(false);
+          if (submitBtn) submitBtn.disabled = true;
+          showAlert(statusAlert, `Submission Blocked: ${lastErrorMessage}`, 'error');
+          return;
+        }
       }
     } catch (whErr) {
       console.warn('Serverless endpoint not reachable:', whErr);
