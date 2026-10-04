@@ -57,6 +57,11 @@
           e.preventDefault();
         }
       });
+
+      // 4. Pre-render Ban Guard (Prevent content flash)
+      if (localStorage.getItem('str_banned') === 'true') {
+        document.documentElement.style.display = 'none';
+      }
     })();
   </script>
 </head>

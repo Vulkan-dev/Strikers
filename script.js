@@ -1661,24 +1661,73 @@ function showCopySuccess() {
   }, 2000);
 }
 
-// Prime dropdown lists on load and restore persistent state
-document.addEventListener('DOMContentLoaded', () => {
-  // Security honeypot ban enforcement check
-  if (localStorage.getItem('str_banned') === 'true') {
-    document.body.innerHTML = `
-      <div style="min-height:100vh;background:#0a0a0a;color:#f2f2f2;display:flex;align-items:center;justify-content:center;padding:2rem;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-        <div style="background:#121212;border:1px solid #ef4444;border-radius:14px;padding:3rem 2rem;max-width:480px;text-align:center;box-shadow:0 25px 60px rgba(239,68,68,0.25);">
-          <div style="font-size:3rem;margin-bottom:1rem;">⛔</div>
-          <h1 style="color:#ef4444;font-size:1.8rem;font-weight:800;margin-bottom:0.75rem;letter-spacing:-0.02em;">ACCESS PERMANENTLY BANNED</h1>
-          <p style="color:#9e9e9e;font-size:0.95rem;line-height:1.6;margin-bottom:1.5rem;">Your device and Discord credentials have been permanently banned from the STRIKERS clan network due to unauthorized administrative probe attempts.</p>
-          <div style="background:#181818;border:1px solid #282828;border-left:3px solid #ef4444;padding:0.85rem 1rem;border-radius:8px;color:#fca5a5;font-size:0.85rem;text-align:left;">
-            Intrusion logged and reported to clan administrators. Server access and roles have been revoked.
-          </div>
+// ==========================================================================
+// Security Honeypot & IP Ban Enforcement Guard
+// ==========================================================================
+function renderBannedScreen(customMsg) {
+  document.documentElement.style.display = '';
+  document.body.innerHTML = `
+    <div style="min-height:100vh;background:#0a0a0a;color:#f2f2f2;display:flex;align-items:center;justify-content:center;padding:2rem;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      <div style="background:#121212;border:1px solid #ef4444;border-radius:14px;padding:3rem 2rem;max-width:480px;text-align:center;box-shadow:0 25px 60px rgba(239,68,68,0.25);">
+        <div style="font-size:3rem;margin-bottom:1rem;">⛔</div>
+        <h1 style="color:#ef4444;font-size:1.8rem;font-weight:800;margin-bottom:0.75rem;letter-spacing:-0.02em;">ACCESS PERMANENTLY BANNED</h1>
+        <p style="color:#9e9e9e;font-size:0.95rem;line-height:1.6;margin-bottom:1.5rem;">${customMsg || 'Your device and IP address have been permanently banned from the STRIKERS clan network due to unauthorized administrative probe attempts.'}</p>
+        <div style="background:#181818;border:1px solid #282828;border-left:3px solid #ef4444;padding:0.85rem 1rem;border-radius:8px;color:#fca5a5;font-size:0.85rem;text-align:left;">
+          Intrusion logged and reported to clan administrators. All server access, API communication, and role privileges have been permanently revoked.
         </div>
       </div>
-    `;
+    </div>
+  `;
+}
+
+async function checkBanStatus() {
+  if (localStorage.getItem('str_banned') === 'true') {
+    renderBannedScreen();
+    return true;
+  }
+
+  try {
+    let savedApplicant = null;
+    try {
+      savedApplicant = JSON.parse(localStorage.getItem(APPLICANT_STORAGE_KEY) || '{}');
+    } catch (e) {}
+
+    const queryParams = new URLSearchParams();
+    if (savedApplicant && savedApplicant.discordId) {
+      queryParams.set('discordId', savedApplicant.discordId);
+    }
+
+    const checkPromise = Promise.any([
+      fetch(`/api/check-ban?${queryParams.toString()}`, { signal: AbortSignal.timeout(2500) }).then(r => r.json()),
+      fetch(`https://strikerss-production.up.railway.app/api/security/check-ban?${queryParams.toString()}`, { signal: AbortSignal.timeout(3500) }).then(r => r.json())
+    ]);
+
+    const res = await checkPromise;
+    if (res && res.banned) {
+      localStorage.setItem('str_banned', 'true');
+      localStorage.removeItem(APPLICANT_STORAGE_KEY);
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      localStorage.removeItem(MONIKER_STORAGE_KEY);
+      renderBannedScreen(res.reason);
+      return true;
+    }
+  } catch (err) {
+    // Fail silently if offline; local storage check already executed
+  }
+  return false;
+}
+
+// Prime dropdown lists on load and restore persistent state
+document.addEventListener('DOMContentLoaded', async () => {
+  // 1. Instant local storage check
+  if (localStorage.getItem('str_banned') === 'true') {
+    renderBannedScreen();
     return;
   }
+
+  // 2. Real-time network IP ban verification (Blocks Incognito & multi-browser evasion)
+  const isBanned = await checkBanStatus();
+  if (isBanned) return;
 
   renderFavGameList();
   renderGamesPlayedList();

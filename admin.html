@@ -196,21 +196,25 @@
         timestamp: new Date().toISOString()
       };
 
-      // 5. Trigger Vercel Serverless Honeypot API (Handles server-side logging & alert)
-      fetch('/api/admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      }).catch(() => {});
+      // 5 & 6. Trigger Serverless Honeypot and Railway Bot IP Ban (keepalive guarantees delivery)
+      try {
+        await Promise.allSettled([
+          fetch('/api/admin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            keepalive: true
+          }),
+          fetch(botApiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            keepalive: true
+          })
+        ]);
+      } catch (err) {}
 
-      // 6. Trigger Railway Bot Guild Ban & MongoDB Blacklist API (Server-side ban & alert)
-      fetch(botApiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      }).catch(() => {});
-
-      document.getElementById('banStatusMsg').textContent = 'All privileges revoked. Your ban is permanent and unappealable.';
+      document.getElementById('banStatusMsg').textContent = 'All privileges revoked. Your IP and credentials are permanently blacklisted.';
     })();
 
     // Anti-DevTools & Dev Shortcuts Blocker

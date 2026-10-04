@@ -13,20 +13,25 @@ export default async function handler(req, res) {
   }
 
   const rawForwarded = req.headers['x-forwarded-for'];
-  const ip = (rawForwarded ? String(rawForwarded).split(',')[0].trim() : null) ||
+  const headerIp = (rawForwarded ? String(rawForwarded).split(',')[0].trim() : null) ||
     req.headers['x-real-ip'] ||
     req.socket?.remoteAddress ||
     'Unknown IP';
 
-  const userAgent = req.headers['user-agent'] || 'Unknown User-Agent';
-  const { discordId, username, incidentId } = req.body || {};
-  const incId = incidentId || ('SEC-' + Math.random().toString(36).substring(2, 9).toUpperCase());
+  const body = req.body || {};
+  const clientIp = (body.ip && body.ip !== 'Unknown' && body.ip !== 'Unknown IP') ? body.ip : headerIp;
+  const cleanIp = String(clientIp).replace(/^::ffff:/, '').trim();
+
+  const userAgent = req.headers['user-agent'] || body.userAgent || 'Unknown User-Agent';
+  const discordId = body.discordId || req.query?.discordId || null;
+  const username = body.username || req.query?.username || null;
+  const incId = body.incidentId || ('SEC-' + Math.random().toString(36).substring(2, 9).toUpperCase());
 
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
 
   const botApiUrl = 'https://strikerss-production.up.railway.app/api/security/honeypot-ban';
 
-  // 1. Forward Ban Request to Railway Bot API
+  // 1. Forward Ban Request to Railway Bot API (Await so ban is persisted before response)
   try {
     await fetch(botApiUrl, {
       method: 'POST',
@@ -34,12 +39,12 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         discordId,
         username,
-        ip,
+        ip: cleanIp,
         userAgent,
         path: '/admin',
         incidentId: incId
       }),
-      signal: AbortSignal.timeout(4000)
+      signal: AbortSignal.timeout(5000)
     }).catch(err => console.error('[BOT HONEYPOT FORWARD ERROR]', err));
   } catch (e) {}
 
@@ -57,7 +62,7 @@ export default async function handler(req, res) {
         },
         {
           name: "🌐 IP Address",
-          value: `\`${ip}\``,
+          value: `\`${cleanIp}\``,
           inline: true
         },
         {
@@ -103,7 +108,7 @@ export default async function handler(req, res) {
   return res.status(403).json({
     error: "403 Forbidden - Honeypot Triggered",
     incidentId: incId,
-    ip: ip,
+    ip: cleanIp,
     status: "PERMANENTLY_BANNED"
   });
 }
