@@ -1480,14 +1480,15 @@ async function performApplicationSubmission(formData) {
   const token = discordAuthToken || localStorage.getItem('str_discord_auth_token') || '';
   let lastErrorMessage = '';
 
-  // 1. Submit directly to Railway Discord Bot Backend (/api/clan/apply)
+  // 1. Submit via Serverless Direct Channel Creation (/api/submit-application)
+  // Creates private review channel in Category 1554194420377583708 with Approve & Reject buttons
   try {
-    const botResp = await fetch(`${botBase}/api/clan/apply`, {
+    const apiResp = await fetch('/api/submit-application', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        discordId: verifiedDiscordAccount.id,
-        username: rawUsername,
+        discordUserId: verifiedDiscordAccount.id,
+        discordUsername: rawUsername,
         age: ageNum,
         hasMic,
         favouriteGame,
@@ -1496,18 +1497,18 @@ async function performApplicationSubmission(formData) {
         accountAgeDays: verifiedDiscordAccount.accountAgeDays,
         accountAgeMonths: verifiedDiscordAccount.accountAgeMonths,
         authToken: token
-      })
+      }),
+      signal: AbortSignal.timeout(10000)
     });
 
-    if (botResp.ok) {
-      responseData = await botResp.json();
+    if (apiResp.ok) {
+      responseData = await apiResp.json();
       submissionSuccess = true;
     } else {
-      const errJson = await botResp.json().catch(() => ({}));
-      lastErrorMessage = errJson.error || `Server returned ${botResp.status}`;
-      console.warn('Bot API /api/clan/apply status:', botResp.status, errJson);
+      const errJson = await apiResp.json().catch(() => ({}));
+      lastErrorMessage = errJson.error || `Server returned ${apiResp.status}`;
 
-      const isAlreadySubmitted = (botResp.status === 409) ||
+      const isAlreadySubmitted = (apiResp.status === 409) ||
         Boolean(errJson && errJson.alreadySubmitted) ||
         Boolean(lastErrorMessage && (
           lastErrorMessage.toLowerCase().includes('recently submitted') ||
@@ -1519,27 +1520,21 @@ async function performApplicationSubmission(formData) {
         console.info('Application is already on file; auto-advancing to Name Maker.');
         responseData = errJson || {};
         submissionSuccess = true;
-      } else if (botResp.status === 403 || botResp.status === 429) {
-        setSubmittingState(false);
-        if (submitBtn) submitBtn.disabled = true;
-        showAlert(statusAlert, `Submission Notice: ${lastErrorMessage}`, 'error');
-        return;
       }
     }
   } catch (apiErr) {
-    console.warn('Direct Bot API unreachable, attempting serverless fallback:', apiErr);
-    lastErrorMessage = apiErr.message;
+    console.warn('Serverless endpoint unavailable, attempting live Bot API fallback:', apiErr.message);
   }
 
-  // 2. Submit via Vercel Serverless Function Fallback
+  // 2. Submit via Live Railway Discord Bot Backend Fallback (/api/clan/apply)
   if (!submissionSuccess) {
     try {
-      const apiResp = await fetch('/api/submit-application', {
+      const botResp = await fetch(`${botBase}/api/clan/apply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          discordUserId: verifiedDiscordAccount.id,
-          discordUsername: rawUsername,
+          discordId: verifiedDiscordAccount.id,
+          username: rawUsername,
           age: ageNum,
           hasMic,
           favouriteGame,
@@ -1548,17 +1543,19 @@ async function performApplicationSubmission(formData) {
           accountAgeDays: verifiedDiscordAccount.accountAgeDays,
           accountAgeMonths: verifiedDiscordAccount.accountAgeMonths,
           authToken: token
-        })
+        }),
+        signal: AbortSignal.timeout(10000)
       });
 
-      if (apiResp.ok) {
-        responseData = await apiResp.json();
+      if (botResp.ok) {
+        responseData = await botResp.json();
         submissionSuccess = true;
       } else {
-        const errJson = await apiResp.json().catch(() => ({}));
-        lastErrorMessage = errJson.error || `Server returned ${apiResp.status}`;
+        const errJson = await botResp.json().catch(() => ({}));
+        lastErrorMessage = errJson.error || `Server returned ${botResp.status}`;
+        console.warn('Bot API /api/clan/apply status:', botResp.status, errJson);
 
-        const isAlreadySubmitted = (apiResp.status === 409) ||
+        const isAlreadySubmitted = (botResp.status === 409) ||
           Boolean(errJson && errJson.alreadySubmitted) ||
           Boolean(lastErrorMessage && (
             lastErrorMessage.toLowerCase().includes('recently submitted') ||
@@ -1570,15 +1567,16 @@ async function performApplicationSubmission(formData) {
           console.info('Application is already on file; auto-advancing to Name Maker.');
           responseData = errJson || {};
           submissionSuccess = true;
-        } else if (apiResp.status === 403 || apiResp.status === 429) {
+        } else if (botResp.status === 403 || botResp.status === 429) {
           setSubmittingState(false);
           if (submitBtn) submitBtn.disabled = true;
           showAlert(statusAlert, `Submission Notice: ${lastErrorMessage}`, 'error');
           return;
         }
       }
-    } catch (whErr) {
-      console.warn('Serverless endpoint not reachable:', whErr);
+    } catch (botErr) {
+      console.warn('Direct Bot API unreachable:', botErr.message);
+      lastErrorMessage = botErr.message;
     }
   }
 

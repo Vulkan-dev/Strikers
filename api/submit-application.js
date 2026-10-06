@@ -107,15 +107,65 @@ export default async function handler(req, res) {
     timestamp: new Date().toISOString()
   };
 
-  const botToken = process.env.DISCORD_BOT_TOKEN;
-  const guildId = process.env.DISCORD_GUILD_ID;
-  const categoryId = process.env.DISCORD_CATEGORY_ID;
-  const staffRoleId = process.env.DISCORD_STAFF_ROLE_ID;
+  const botToken = process.env.DISCORD_BOT_TOKEN || process.env.token || "";
+  const guildId = process.env.DISCORD_GUILD_ID || process.env.CLAN_GUILD_ID || "1553407415523999824";
+  const categoryId = process.env.DISCORD_CATEGORY_ID || process.env.CLAN_CATEGORY_ID || "1554194420377583708";
+  const staffRoleId = process.env.DISCORD_STAFF_ROLE_ID || process.env.CLAN_STAFF_ROLE_ID || "1553810081915600946";
 
-  // Mode 1: Bot API Channel Creation
-  if (botToken && guildId && categoryId) {
+  const applicantId = discordUserId || cleanHandle;
+  const applicantChannelName = cleanChannelSlug.toLowerCase();
+
+  // Mode 1: Direct Discord REST API Channel Creation in Target Category (1554194420377583708)
+  try {
+    // 1. Check if an application channel for this person already exists in the category
+    let existingChannel = null;
     try {
-      // 1. Create text channel under category
+      const chansResp = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
+        headers: {
+          'Authorization': `Bot ${botToken}`,
+          'User-Agent': 'STRClanVerification/2.0'
+        }
+      });
+      if (chansResp.ok) {
+        const chans = await chansResp.json();
+        existingChannel = chans.find(c =>
+          c.parent_id === categoryId &&
+          (c.name === applicantChannelName || c.name === `verify-${applicantChannelName}`)
+        );
+      }
+    } catch (checkErr) {
+      console.warn('[SUBMIT] Could not inspect existing channels:', checkErr.message);
+    }
+
+    let createdChannel = existingChannel;
+
+    if (!createdChannel) {
+      // Setup permission overwrites:
+      // @everyone is denied ViewChannel
+      // Staff role is allowed ViewChannel, SendMessages, ReadHistory, ManageMessages
+      // Applicant is allowed ViewChannel, SendMessages, ReadHistory, AttachFiles
+      const permissionOverwrites = [
+        {
+          id: guildId, // @everyone
+          type: 0,
+          deny: "1024" // Deny ViewChannel
+        },
+        {
+          id: staffRoleId, // Clan Staff Role
+          type: 0,
+          allow: "76800" // ViewChannel (1024) + SendMessages (2048) + ReadMessageHistory (65536) + ManageMessages (8192)
+        }
+      ];
+
+      if (discordUserId && /^\d{17,20}$/.test(String(discordUserId).trim())) {
+        permissionOverwrites.push({
+          id: String(discordUserId).trim(), // Applicant Member
+          type: 1,
+          allow: "100352" // ViewChannel (1024) + SendMessages (2048) + ReadMessageHistory (65536) + AttachFiles (32768)
+        });
+      }
+
+      // Create text channel named directly after the application holder person
       const channelResp = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
         method: 'POST',
         headers: {
@@ -124,96 +174,75 @@ export default async function handler(req, res) {
           'User-Agent': 'STRClanVerification/2.0'
         },
         body: JSON.stringify({
-          name: `str-${cleanChannelSlug}`,
+          name: applicantChannelName,
           type: 0, // Guild Text Channel
           parent_id: categoryId,
-          topic: `STR Clan Review • @${cleanHandle} (${discordUserId || 'N/A'})`
+          topic: `STR Clan Intake Review for @${cleanHandle} (${discordUserId || 'N/A'})`,
+          permission_overwrites: permissionOverwrites
         })
       });
 
       if (!channelResp.ok) {
         const errJson = await channelResp.json().catch(() => ({}));
-        console.error('Failed to create channel via bot:', channelResp.status, errJson);
-        throw new Error(`Bot channel creation failed: ${errJson.message || channelResp.statusText}`);
+        console.error('Failed to create channel in category 1554194420377583708:', channelResp.status, errJson);
+        throw new Error(`Discord channel creation failed: ${errJson.message || channelResp.statusText}`);
       }
 
-      const createdChannel = await channelResp.json();
-
-      // 2. Action buttons for Staff Review (Approve / Reject)
-      const applicantId = discordUserId || cleanHandle;
-      const components = [
-        {
-          type: 1, // Action Row
-          components: [
-            {
-              type: 2, // Button
-              style: 3, // Success (Green)
-              label: "Approve",
-              custom_id: `clan_approve_${applicantId}`,
-              emoji: { name: "✅" }
-            },
-            {
-              type: 2, // Button
-              style: 4, // Danger (Red)
-              label: "Reject",
-              custom_id: `clan_reject_${applicantId}`,
-              emoji: { name: "❌" }
-            }
-          ]
-        }
-      ];
-
-      // 3. Post embed message with buttons into the new channel
-      const messageBody = {
-        content: staffRoleId ? `<@&${staffRoleId}> New applicant channel ready for review.` : undefined,
-        embeds: [embedPayload],
-        components: components
-      };
-
-      const msgResp = await fetch(`https://discord.com/api/v10/channels/${createdChannel.id}/messages`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bot ${botToken}`,
-          'Content-Type': 'application/json',
-          'User-Agent': 'STRClanVerification/2.0'
-        },
-        body: JSON.stringify(messageBody)
-      });
-
-      if (!msgResp.ok) {
-        const errJson = await msgResp.json().catch(() => ({}));
-        console.error('Failed to post message with review buttons:', msgResp.status, errJson);
-      }
-
-      return res.status(200).json({
-        success: true,
-        mode: 'bot_channel',
-        channelId: createdChannel.id,
-        channelName: createdChannel.name,
-        channelUrl: `https://discord.com/channels/${guildId}/${createdChannel.id}`
-      });
-    } catch (botErr) {
-      console.error('Error during Bot channel workflow, falling back to Webhook:', botErr);
-      // Fallback directly to webhook if bot fails
+      createdChannel = await channelResp.json();
     }
-  }
 
-  const rawForwarded = req.headers['x-forwarded-for'];
-  const clientIp = (rawForwarded ? String(rawForwarded).split(',')[0].trim() : null) ||
-    req.headers['x-real-ip'] ||
-    req.socket?.remoteAddress ||
-    'Unknown IP';
-  const cleanIp = String(clientIp).replace(/^::ffff:/, '').trim();
+    // 2. Action buttons for Staff Review (Approve or Reject)
+    const components = [
+      {
+        type: 1, // Action Row
+        components: [
+          {
+            type: 2, // Button
+            style: 3, // Success (Green)
+            label: "Approve",
+            custom_id: `clan_approve_${applicantId}`,
+            emoji: { name: "✅" }
+          },
+          {
+            type: 2, // Button
+            style: 4, // Danger (Red)
+            label: "Reject",
+            custom_id: `clan_reject_${applicantId}`,
+            emoji: { name: "❌" }
+          }
+        ]
+      }
+    ];
 
-  // Mode 2: Forward to Live Railway Bot API (where the bot and Discord client run)
-  const railwayBotUrl = process.env.RAILWAY_BOT_URL || 'https://strikerss-production.up.railway.app';
-  try {
-    const railwayResp = await fetch(`${railwayBotUrl}/api/clan/apply`, {
+    // 3. Post review embed message with buttons into the new applicant channel
+    const messageBody = {
+      content: staffRoleId
+        ? `<@&${staffRoleId}> 🔔 New applicant intake channel ready for review: <@${applicantId}>!`
+        : `🔔 New applicant intake channel ready for review: <@${applicantId}>!`,
+      embeds: [embedPayload],
+      components: components
+    };
+
+    const msgResp = await fetch(`https://discord.com/api/v10/channels/${createdChannel.id}/messages`, {
       method: 'POST',
       headers: {
+        'Authorization': `Bot ${botToken}`,
         'Content-Type': 'application/json',
-        'x-forwarded-for': cleanIp
+        'User-Agent': 'STRClanVerification/2.0'
       },
+      body: JSON.stringify(messageBody)
+    });
+
+    if (!msgResp.ok) {
+      const errJson = await msgResp.json().catch(() => ({}));
+      console.error('Failed to post message with review buttons:', msgResp.status, errJson);
+    }
+
+    // 4. Background Sync with Live Railway Bot & MongoDB
+    const railwayBotUrl = process.env.RAILWAY_BOT_URL || 'https://strikerss-production.up.railway.app';
+    fetch(`${railwayBotUrl}/api/clan/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         discordId: discordUserId,
         username: discordUsername,
@@ -225,55 +254,22 @@ export default async function handler(req, res) {
         avatarUrl,
         accountAgeDays: calculatedDays,
         accountAgeMonths: calculatedMonths,
+        channelId: createdChannel.id,
         authToken: req.body?.authToken || ''
       })
-    });
-    if (railwayResp.ok) {
-      const data = await railwayResp.json();
-      return res.status(200).json(data);
-    }
-    if (railwayResp.status === 409 || railwayResp.status === 429 || railwayResp.status === 403) {
-      const errData = await railwayResp.json().catch(() => ({}));
-      if (railwayResp.status === 409 || errData.alreadySubmitted || (errData.error && errData.error.toLowerCase().includes('recently submitted'))) {
-        return res.status(200).json({
-          success: true,
-          alreadySubmitted: true,
-          message: 'Your application is already on file and under review. Proceeding to Name Maker!',
-          ...errData
-        });
-      }
-      return res.status(railwayResp.status).json(errData);
-    }
-  } catch (railwayErr) {
-    console.warn('Railway forward failed:', railwayErr.message);
-  }
-
-  // Mode 3: Webhook Fallback
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL ||
-    process.env.SECURITY_WEBHOOK_URL ||
-    "https://discord.com/api/webhooks/1556296965367791789/mL6O6JxySSy2FWxzlgcxTO2WvWuTW9hw5klrrC9DLtxhkZGAYr9PrWd_W_x46fcwq9kP";
-
-
-  try {
-    const hookResp = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: "⚡ 𝑺𝑻𝑹𝑰𝑲𝑬𝑹𝑺",
-        embeds: [embedPayload]
-      })
-    });
-
-    if (!hookResp.ok && hookResp.status !== 204) {
-      const errTxt = await hookResp.text();
-      return res.status(500).json({ error: `Webhook dispatch failed: ${errTxt}` });
-    }
+    }).catch(rErr => console.warn('[BACKGROUND RAILWAY SYNC ERROR]', rErr.message));
 
     return res.status(200).json({
       success: true,
-      mode: 'webhook_fallback'
+      mode: 'bot_channel',
+      channelId: createdChannel.id,
+      channelName: createdChannel.name,
+      channelUrl: `https://discord.com/channels/${guildId}/${createdChannel.id}`
     });
-  } catch (err) {
-    return res.status(500).json({ error: err.message || 'Transmission failed.' });
+  } catch (chanErr) {
+    console.error('[SUBMIT-APPLICATION ERROR]', chanErr);
+    return res.status(500).json({
+      error: `Failed to create application channel in category: ${chanErr.message || chanErr}`
+    });
   }
 }
