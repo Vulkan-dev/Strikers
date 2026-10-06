@@ -5,10 +5,12 @@
 
 import crypto from 'crypto';
 
-const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || process.env.token || "";
-const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID || "1553407415523999824";
-const VERIFIED_ROLE_ID = process.env.VERIFIED_ROLE_ID || "1554580539082809490";
-const AUTH_SECRET = process.env.AUTH_SECRET || "STR_CLAN_PORTAL_AUTH_SECRET_2026";
+const cleanEnv = (val, fallback = '') => String(val || fallback).replace(/^["']|["']$/g, '').trim();
+
+const DISCORD_BOT_TOKEN = cleanEnv(process.env.DISCORD_BOT_TOKEN || process.env.token);
+const DISCORD_GUILD_ID = cleanEnv(process.env.DISCORD_GUILD_ID, "1553407415523999824");
+const VERIFIED_ROLE_ID = cleanEnv(process.env.VERIFIED_ROLE_ID, "1554580539082809490");
+const AUTH_SECRET = cleanEnv(process.env.AUTH_SECRET, "STR_CLAN_PORTAL_AUTH_SECRET_2026");
 const DISCORD_EPOCH = 1420070400000n;
 
 export default async function handler(req, res) {

@@ -5,11 +5,13 @@
 
 import crypto from 'crypto';
 
-const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || process.env.token || "";
-const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID || "1553407415523999824";
-const VERIFIED_ROLE_ID = process.env.VERIFIED_ROLE_ID || "1554580539082809490";
-const WEBHOOK_URL = process.env.SECURITY_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL || "https://discord.com/api/webhooks/1556296965367791789/mL6O6JxySSy2FWxzlgcxTO2WvWuTW9hw5klrrC9DLtxhkZGAYr9PrWd_W_x46fcwq9kP";
-const AUTH_SECRET = process.env.AUTH_SECRET || "STR_CLAN_PORTAL_AUTH_SECRET_2026";
+const cleanEnv = (val, fallback = '') => String(val || fallback).replace(/^["']|["']$/g, '').trim();
+
+const DISCORD_BOT_TOKEN = cleanEnv(process.env.DISCORD_BOT_TOKEN || process.env.token);
+const DISCORD_GUILD_ID = cleanEnv(process.env.DISCORD_GUILD_ID, "1553407415523999824");
+const VERIFIED_ROLE_ID = cleanEnv(process.env.VERIFIED_ROLE_ID, "1554580539082809490");
+const WEBHOOK_URL = cleanEnv(process.env.SECURITY_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL, "https://discord.com/api/webhooks/1556296965367791789/mL6O6JxySSy2FWxzlgcxTO2WvWuTW9hw5klrrC9DLtxhkZGAYr9PrWd_W_x46fcwq9kP");
+const AUTH_SECRET = cleanEnv(process.env.AUTH_SECRET, "STR_CLAN_PORTAL_AUTH_SECRET_2026");
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');

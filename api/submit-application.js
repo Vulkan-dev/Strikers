@@ -107,10 +107,11 @@ export default async function handler(req, res) {
     timestamp: new Date().toISOString()
   };
 
-  const botToken = process.env.DISCORD_BOT_TOKEN || process.env.token || "";
-  const guildId = process.env.DISCORD_GUILD_ID || process.env.CLAN_GUILD_ID || "1553407415523999824";
-  const categoryId = process.env.DISCORD_CATEGORY_ID || process.env.CLAN_CATEGORY_ID || "1554194420377583708";
-  const staffRoleId = process.env.DISCORD_STAFF_ROLE_ID || process.env.CLAN_STAFF_ROLE_ID || "1553810081915600946";
+  const rawToken = process.env.DISCORD_BOT_TOKEN || process.env.token || "";
+  const botToken = String(rawToken).replace(/^["']|["']$/g, '').trim();
+  const guildId = String(process.env.DISCORD_GUILD_ID || process.env.CLAN_GUILD_ID || "1553407415523999824").replace(/^["']|["']$/g, '').trim();
+  const categoryId = String(process.env.DISCORD_CATEGORY_ID || process.env.CLAN_CATEGORY_ID || "1554194420377583708").replace(/^["']|["']$/g, '').trim();
+  const staffRoleId = String(process.env.DISCORD_STAFF_ROLE_ID || process.env.CLAN_STAFF_ROLE_ID || "1553810081915600946").replace(/^["']|["']$/g, '').trim();
 
   const applicantId = discordUserId || cleanHandle;
   const applicantChannelName = cleanChannelSlug.toLowerCase();

@@ -50,8 +50,9 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Please enter a Discord User ID or Username.' });
   }
 
-  const botToken = process.env.DISCORD_BOT_TOKEN;
-  const guildId = process.env.DISCORD_GUILD_ID;
+  const rawToken = process.env.DISCORD_BOT_TOKEN || process.env.token || "";
+  const botToken = String(rawToken).replace(/^["']|["']$/g, '').trim();
+  const guildId = String(process.env.DISCORD_GUILD_ID || "1553407415523999824").replace(/^["']|["']$/g, '').trim();
 
   // Resolve Username to ID if not numeric
   if (!/^\d{17,20}$/.test(targetId)) {
